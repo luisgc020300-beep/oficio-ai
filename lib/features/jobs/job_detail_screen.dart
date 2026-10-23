@@ -125,6 +125,8 @@ class JobDetailScreen extends StatelessWidget {
                   ],
                 ],
               ),
+              const SizedBox(height: AppSpace.sm),
+              _AccionesEstado(appData: appData, trabajo: trabajo),
               const SizedBox(height: AppSpace.md),
               Card(
                 child: Padding(
@@ -271,5 +273,107 @@ class JobDetailScreen extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+/// Botones de cambio de estado directos desde la ficha -- antes solo se
+/// podía cambiar el estado abriendo el formulario de edición completo.
+/// Nunca toca presupuesto ni citas: solo llama a
+/// appData.trabajos.update() con el propio trabajo.
+class _AccionesEstado extends StatelessWidget {
+  const _AccionesEstado({required this.appData, required this.trabajo});
+
+  final AppData appData;
+  final Trabajo trabajo;
+
+  Future<void> _cambiarA(
+    BuildContext context,
+    EstadoTrabajo nuevo, {
+    String? tituloConfirmacion,
+    String? mensajeConfirmacion,
+  }) async {
+    if (tituloConfirmacion != null) {
+      final confirmar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(tituloConfirmacion),
+          content: mensajeConfirmacion != null
+              ? Text(mensajeConfirmacion)
+              : null,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Confirmar'),
+            ),
+          ],
+        ),
+      );
+      if (confirmar != true) return;
+    }
+    await appData.trabajos.update(trabajo.copyWith(estado: nuevo));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    switch (trabajo.estado) {
+      case EstadoTrabajo.pendiente:
+        return Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => _cambiarA(context, EstadoTrabajo.enCurso),
+                icon: const Icon(Icons.play_arrow_outlined, size: 18),
+                label: const Text('Empezar trabajo'),
+              ),
+            ),
+            const SizedBox(width: AppSpace.sm),
+            OutlinedButton(
+              onPressed: () => _cambiarA(
+                context,
+                EstadoTrabajo.cancelado,
+                tituloConfirmacion: '¿Cancelar este trabajo?',
+              ),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        );
+      case EstadoTrabajo.enCurso:
+        return Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => _cambiarA(
+                  context,
+                  EstadoTrabajo.finalizado,
+                  tituloConfirmacion: '¿Marcar como terminado?',
+                  mensajeConfirmacion:
+                      'El presupuesto y las citas no cambian, solo el '
+                      'estado del trabajo.',
+                ),
+                icon: const Icon(Icons.check_circle_outline, size: 18),
+                label: const Text('Marcar como terminado'),
+              ),
+            ),
+            const SizedBox(width: AppSpace.sm),
+            OutlinedButton(
+              onPressed: () => _cambiarA(
+                context,
+                EstadoTrabajo.cancelado,
+                tituloConfirmacion: '¿Cancelar este trabajo?',
+              ),
+              child: const Text('Cancelar'),
+            ),
+          ],
+        );
+      case EstadoTrabajo.finalizado:
+      case EstadoTrabajo.cancelado:
+        // Estados finales -- sin acción rápida; si hace falta corregirlo
+        // (p. ej. se canceló por error), se hace desde "Editar".
+        return const SizedBox.shrink();
+    }
   }
 }

@@ -20,6 +20,7 @@ class JobsListScreen extends StatefulWidget {
 
 class _JobsListScreenState extends State<JobsListScreen> {
   EstadoTrabajo? _filtro;
+  String _busqueda = '';
 
   @override
   Widget build(BuildContext context) {
@@ -46,18 +47,76 @@ class _JobsListScreenState extends State<JobsListScreen> {
                   mostrarFormularioTrabajo(context, appData: widget.appData),
             );
           }
-          final filtrados = _filtro == null
+          final pendientes = todos
+              .where((t) => t.estado == EstadoTrabajo.pendiente)
+              .length;
+          final enCurso = todos
+              .where((t) => t.estado == EstadoTrabajo.enCurso)
+              .length;
+
+          final porEstado = _filtro == null
               ? todos
               : todos.where((t) => t.estado == _filtro).toList();
+          final consulta = _busqueda.trim().toLowerCase();
+          final filtrados = consulta.isEmpty
+              ? porEstado
+              : porEstado.where((t) {
+                  final cliente = widget.appData.clientes.byId(t.clienteId);
+                  return t.titulo.toLowerCase().contains(consulta) ||
+                      (t.descripcion?.toLowerCase().contains(consulta) ??
+                          false) ||
+                      (cliente?.nombre.toLowerCase().contains(consulta) ??
+                          false);
+                }).toList();
+
           return Column(
             children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.md,
+                  AppSpace.sm,
+                  AppSpace.md,
+                  0,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _ResumenMini(
+                        texto: '$pendientes pendientes',
+                        color: AppColors.warning,
+                      ),
+                    ),
+                    const SizedBox(width: AppSpace.sm),
+                    Expanded(
+                      child: _ResumenMini(
+                        texto: '$enCurso en curso',
+                        color: AppColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  AppSpace.md,
+                  AppSpace.sm,
+                  AppSpace.md,
+                  AppSpace.sm,
+                ),
+                child: TextField(
+                  decoration: const InputDecoration(
+                    hintText: 'Buscar por cliente o descripción...',
+                    prefixIcon: Icon(Icons.search, size: 20),
+                  ),
+                  onChanged: (v) => setState(() => _busqueda = v),
+                ),
+              ),
               SizedBox(
                 height: 44,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(
                     horizontal: AppSpace.md,
-                    vertical: AppSpace.sm,
                   ),
                   children: [
                     _ChipFiltro(
@@ -78,10 +137,12 @@ class _JobsListScreenState extends State<JobsListScreen> {
               ),
               Expanded(
                 child: filtrados.isEmpty
-                    ? const EmptyState(
+                    ? EmptyState(
                         icon: Icons.filter_list_off,
-                        title: 'Sin trabajos en este estado',
-                        message: 'Prueba a cambiar el filtro de arriba.',
+                        title: 'Sin resultados',
+                        message: consulta.isEmpty
+                            ? 'Prueba a cambiar el filtro de arriba.'
+                            : 'Nada coincide con "$_busqueda" en este filtro.',
                       )
                     : ListView.separated(
                         padding: const EdgeInsets.fromLTRB(
@@ -129,6 +190,43 @@ class _JobsListScreenState extends State<JobsListScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _ResumenMini extends StatelessWidget {
+  const _ResumenMini({required this.texto, required this.color});
+
+  final String texto;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(AppRadius.sm),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 7,
+            height: 7,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            texto,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }

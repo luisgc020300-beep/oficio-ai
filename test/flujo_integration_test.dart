@@ -7,7 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:oficio_ai/data/app_data.dart';
 import 'package:oficio_ai/data/local/local_store.dart';
-import 'package:oficio_ai/data/models/cita.dart';
 import 'package:oficio_ai/data/models/cliente.dart';
 import 'package:oficio_ai/data/models/concepto_presupuesto.dart';
 import 'package:oficio_ai/data/models/presupuesto.dart';

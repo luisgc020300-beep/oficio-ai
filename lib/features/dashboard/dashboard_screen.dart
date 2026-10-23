@@ -10,6 +10,7 @@ import '../../core/widgets/quick_action_button.dart';
 import '../../core/widgets/section_header.dart';
 import '../../core/widgets/stat_tile.dart';
 import '../../data/app_data.dart';
+import '../../data/models/cita.dart';
 import '../../data/models/presupuesto.dart';
 import '../../data/models/trabajo.dart';
 import '../calendar/appointment_form_sheet.dart';
@@ -96,15 +97,24 @@ class DashboardScreen extends StatelessWidget {
               )
               .length;
 
-          final proximasCitas =
+          final ahora = DateTime.now();
+          final finDeHoy = DateTime(ahora.year, ahora.month, ahora.day, 23, 59, 59);
+          // "Citas de hoy" tiene su propia sección (prioridad nº1 del
+          // dashboard, encargo iteración 4) -- "Próximas citas" muestra
+          // solo lo que viene DESPUÉS de hoy para no duplicar la cuenta.
+          final citasHoy =
               appData.citas.citas
                   .where(
                     (c) =>
-                        !c.completada &&
-                        c.fechaHora.isAfter(
-                          DateTime.now().subtract(const Duration(hours: 1)),
-                        ),
+                        c.fechaHora.year == ahora.year &&
+                        c.fechaHora.month == ahora.month &&
+                        c.fechaHora.day == ahora.day,
                   )
+                  .toList()
+                ..sort((a, b) => a.fechaHora.compareTo(b.fechaHora));
+          final proximasCitas =
+              appData.citas.citas
+                  .where((c) => !c.completada && c.fechaHora.isAfter(finDeHoy))
                   .toList()
                 ..sort((a, b) => a.fechaHora.compareTo(b.fechaHora));
 
@@ -168,6 +178,31 @@ class DashboardScreen extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: AppSpace.lg),
+              const SectionHeader(title: 'Hoy'),
+              const SizedBox(height: AppSpace.sm),
+              if (citasHoy.isEmpty)
+                _TarjetaVacia(
+                  texto: 'Sin citas programadas para hoy.',
+                  accion: 'Programar cita',
+                  onAccion: () => mostrarFormularioCita(
+                    context,
+                    appData: appData,
+                    diaInicial: DateTime.now(),
+                  ),
+                )
+              else
+                Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < citasHoy.length; i++) ...[
+                        if (i > 0) const Divider(height: 1, indent: 16),
+                        _FilaCitaHoy(appData: appData, cita: citasHoy[i]),
+                      ],
+                    ],
+                  ),
+                ),
+              const SizedBox(height: AppSpace.lg),
               GridView.count(
                 crossAxisCount: 2,
                 shrinkWrap: true,
@@ -177,17 +212,17 @@ class DashboardScreen extends StatelessWidget {
                 childAspectRatio: 1.5,
                 children: [
                   StatTile(
-                    icon: Icons.build_outlined,
-                    value: '$enCurso',
-                    label: 'Trabajos en curso',
-                    color: AppColors.primary,
-                    onTap: onVerTrabajos,
-                  ),
-                  StatTile(
                     icon: Icons.pending_actions_outlined,
                     value: '$pendientes',
                     label: 'Trabajos pendientes',
                     color: AppColors.warning,
+                    onTap: onVerTrabajos,
+                  ),
+                  StatTile(
+                    icon: Icons.build_outlined,
+                    value: '$enCurso',
+                    label: 'Trabajos en curso',
+                    color: AppColors.primary,
                     onTap: onVerTrabajos,
                   ),
                   StatTile(
@@ -401,15 +436,73 @@ List<_EventoActividad> _actividadReciente(AppData appData) {
 }
 
 class _TarjetaVacia extends StatelessWidget {
-  const _TarjetaVacia({required this.texto});
+  const _TarjetaVacia({required this.texto, this.accion, this.onAccion});
   final String texto;
+  final String? accion;
+  final VoidCallback? onAccion;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(AppSpace.md),
-        child: Text(texto, style: Theme.of(context).textTheme.bodyMedium),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(texto, style: Theme.of(context).textTheme.bodyMedium),
+            ),
+            if (accion != null && onAccion != null)
+              TextButton(onPressed: onAccion, child: Text(accion!)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FilaCitaHoy extends StatelessWidget {
+  const _FilaCitaHoy({required this.appData, required this.cita});
+
+  final AppData appData;
+  final Cita cita;
+
+  @override
+  Widget build(BuildContext context) {
+    final cliente = cita.clienteId != null
+        ? appData.clientes.byId(cita.clienteId!)
+        : null;
+    final trabajo = cita.trabajoId != null
+        ? appData.trabajos.byId(cita.trabajoId!)
+        : null;
+    final subtitulo = [
+      if (cliente != null) cliente.nombre,
+      if (trabajo != null) trabajo.titulo,
+    ].join(' · ');
+    return ListTile(
+      leading: Container(
+        width: 44,
+        alignment: Alignment.center,
+        child: Text(
+          formatTime(cita.fechaHora),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(color: AppColors.primary),
+        ),
+      ),
+      title: Row(
+        children: [
+          Flexible(
+            child: Text(cita.titulo, overflow: TextOverflow.ellipsis),
+          ),
+          if (cita.esDemo) ...[const SizedBox(width: 6), const DemoTag()],
+        ],
+      ),
+      subtitle: subtitulo.isEmpty ? null : Text(subtitulo),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => mostrarFormularioCita(
+        context,
+        appData: appData,
+        existente: cita,
       ),
     );
   }
