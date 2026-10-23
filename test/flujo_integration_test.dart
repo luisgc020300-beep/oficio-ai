@@ -285,6 +285,7 @@ void main() {
               appData: appData,
               onVerTrabajos: () {},
               onVerPresupuestos: () {},
+              onVerFacturas: () {},
             ),
           ),
         );

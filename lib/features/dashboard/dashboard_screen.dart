@@ -11,6 +11,7 @@ import '../../core/widgets/section_header.dart';
 import '../../core/widgets/stat_tile.dart';
 import '../../data/app_data.dart';
 import '../../data/models/cita.dart';
+import '../../data/models/factura.dart';
 import '../../data/models/presupuesto.dart';
 import '../../data/models/trabajo.dart';
 import '../calendar/appointment_form_sheet.dart';
@@ -18,18 +19,21 @@ import '../clients/client_form_sheet.dart';
 import '../jobs/job_detail_screen.dart';
 import '../jobs/job_form_sheet.dart';
 import '../quotes/quote_form_screen.dart';
+import '../settings/business_settings_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
     required this.appData,
     required this.onVerTrabajos,
     required this.onVerPresupuestos,
+    required this.onVerFacturas,
     super.key,
   });
 
   final AppData appData;
   final VoidCallback onVerTrabajos;
   final VoidCallback onVerPresupuestos;
+  final VoidCallback onVerFacturas;
 
   void _nuevoPresupuesto(BuildContext context) {
     if (appData.clientes.clientes.isEmpty) {
@@ -55,6 +59,14 @@ class DashboardScreen extends StatelessWidget {
         title: const BrandMark(compact: true),
         actions: [
           IconButton(
+            tooltip: 'Mi negocio',
+            icon: const Icon(Icons.store_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => BusinessSettingsScreen(appData: appData)),
+            ),
+          ),
+          IconButton(
             icon: const Icon(Icons.notifications_none_outlined),
             onPressed: () {},
           ),
@@ -66,15 +78,18 @@ class DashboardScreen extends StatelessWidget {
           appData.trabajos,
           appData.presupuestos,
           appData.citas,
+          appData.facturas,
         ]),
         builder: (context, _) {
           final trabajos = appData.trabajos.trabajos;
           final presupuestos = appData.presupuestos.presupuestos;
+          final facturas = appData.facturas.facturas;
           final hayDatosDemo =
               appData.clientes.clientes.any((c) => c.esDemo) ||
               trabajos.any((t) => t.esDemo) ||
               presupuestos.any((p) => p.esDemo) ||
-              appData.citas.citas.any((c) => c.esDemo);
+              appData.citas.citas.any((c) => c.esDemo) ||
+              facturas.any((f) => f.esDemo);
           final enCurso = trabajos
               .where((t) => t.estado == EstadoTrabajo.enCurso)
               .length;
@@ -96,6 +111,81 @@ class DashboardScreen extends StatelessWidget {
                     appData.trabajos.porPresupuesto(p.id).isEmpty,
               )
               .length;
+
+          // Resumen económico (encargo, iteración 5, sección 8). La
+          // facturación se agrupa por fecha de EMISIÓN; los cobros, por
+          // fecha EFECTIVA del pago -- son fechas distintas a propósito,
+          // nunca se mezclan en el mismo cálculo.
+          final hoyEconomico = DateTime.now();
+          final inicioMes = DateTime(hoyEconomico.year, hoyEconomico.month);
+          final inicioMesSiguiente = DateTime(
+            hoyEconomico.year,
+            hoyEconomico.month + 1,
+          );
+          final totalFacturadoMes = facturas
+              .where(
+                (f) =>
+                    f.estado == EstadoFactura.emitida &&
+                    f.fechaEmision != null &&
+                    !f.fechaEmision!.isBefore(inicioMes) &&
+                    f.fechaEmision!.isBefore(inicioMesSiguiente),
+              )
+              .fold<double>(0, (acc, f) => acc + f.totales.total);
+          final totalCobradoMes = facturas
+              .expand((f) => f.pagos)
+              .where(
+                (p) =>
+                    !p.fecha.isBefore(inicioMes) &&
+                    p.fecha.isBefore(inicioMesSiguiente),
+              )
+              .fold<double>(0, (acc, p) => acc + p.importe);
+          final saldoPendienteTotal = facturas
+              .where((f) => f.estado == EstadoFactura.emitida)
+              .fold<double>(0, (acc, f) => acc + f.saldoPendiente);
+          final facturasPendientes = facturas
+              .where((f) => f.estado == EstadoFactura.emitida && !f.pagadaCompleta)
+              .length;
+          final facturasVencidas = facturas
+              .where((f) => f.estaVencida(ahora: hoyEconomico))
+              .length;
+          // No cuenta como "sin facturar" si ya hay una factura EMITIDA
+          // desde ese presupuesto -- un borrador en marcha no basta,
+          // igual que appData.trabajos.porPresupuesto() arriba no cuenta
+          // borradores de presupuesto como si ya hubiera trabajo.
+          final presupuestosAceptadosSinFacturar = presupuestos
+              .where(
+                (p) =>
+                    p.estado == EstadoPresupuesto.aceptado &&
+                    appData.facturas
+                        .porPresupuesto(p.id)
+                        .where((f) => f.estado == EstadoFactura.emitida)
+                        .isEmpty,
+              )
+              .length;
+          final evolucionMensual = List.generate(6, (i) {
+            final mes = DateTime(
+              hoyEconomico.year,
+              hoyEconomico.month - (5 - i),
+            );
+            final inicio = DateTime(mes.year, mes.month);
+            final finExclusive = DateTime(mes.year, mes.month + 1);
+            final facturado = facturas
+                .where(
+                  (f) =>
+                      f.estado == EstadoFactura.emitida &&
+                      f.fechaEmision != null &&
+                      !f.fechaEmision!.isBefore(inicio) &&
+                      f.fechaEmision!.isBefore(finExclusive),
+                )
+                .fold<double>(0, (acc, f) => acc + f.totales.total);
+            final cobrado = facturas
+                .expand((f) => f.pagos)
+                .where(
+                  (p) => !p.fecha.isBefore(inicio) && p.fecha.isBefore(finExclusive),
+                )
+                .fold<double>(0, (acc, p) => acc + p.importe);
+            return _MesEconomico(mes: mes, facturado: facturado, cobrado: cobrado);
+          });
 
           final ahora = DateTime.now();
           final finDeHoy = DateTime(ahora.year, ahora.month, ahora.day, 23, 59, 59);
@@ -250,6 +340,22 @@ class DashboardScreen extends StatelessWidget {
               ),
               const SizedBox(height: AppSpace.lg),
               SectionHeader(
+                title: 'Resumen económico',
+                actionLabel: 'Ver facturas',
+                onAction: onVerFacturas,
+              ),
+              const SizedBox(height: AppSpace.sm),
+              _ResumenEconomico(
+                totalFacturadoMes: totalFacturadoMes,
+                totalCobradoMes: totalCobradoMes,
+                saldoPendienteTotal: saldoPendienteTotal,
+                facturasPendientes: facturasPendientes,
+                facturasVencidas: facturasVencidas,
+                presupuestosAceptadosSinFacturar: presupuestosAceptadosSinFacturar,
+                evolucionMensual: evolucionMensual,
+              ),
+              const SizedBox(height: AppSpace.lg),
+              SectionHeader(
                 title: 'Próximos trabajos',
                 actionLabel: proximosTrabajos.isEmpty ? null : 'Ver todos',
                 onAction: proximosTrabajos.isEmpty ? null : onVerTrabajos,
@@ -394,6 +500,252 @@ class DashboardScreen extends StatelessWidget {
   }
 }
 
+class _MesEconomico {
+  const _MesEconomico({
+    required this.mes,
+    required this.facturado,
+    required this.cobrado,
+  });
+
+  final DateTime mes;
+  final double facturado;
+  final double cobrado;
+}
+
+const _mesesCorto = [
+  'ene',
+  'feb',
+  'mar',
+  'abr',
+  'may',
+  'jun',
+  'jul',
+  'ago',
+  'sep',
+  'oct',
+  'nov',
+  'dic',
+];
+
+class _ResumenEconomico extends StatelessWidget {
+  const _ResumenEconomico({
+    required this.totalFacturadoMes,
+    required this.totalCobradoMes,
+    required this.saldoPendienteTotal,
+    required this.facturasPendientes,
+    required this.facturasVencidas,
+    required this.presupuestosAceptadosSinFacturar,
+    required this.evolucionMensual,
+  });
+
+  final double totalFacturadoMes;
+  final double totalCobradoMes;
+  final double saldoPendienteTotal;
+  final int facturasPendientes;
+  final int facturasVencidas;
+  final int presupuestosAceptadosSinFacturar;
+  final List<_MesEconomico> evolucionMensual;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(AppSpace.md),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricaEconomica(
+                    icon: Icons.request_quote_outlined,
+                    color: AppColors.primary,
+                    valor: formatCurrency(totalFacturadoMes),
+                    label: 'Facturado este mes',
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: _MetricaEconomica(
+                    icon: Icons.payments_outlined,
+                    color: AppColors.success,
+                    valor: formatCurrency(totalCobradoMes),
+                    label: 'Cobrado este mes',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpace.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricaEconomica(
+                    icon: Icons.hourglass_bottom_outlined,
+                    color: AppColors.warning,
+                    valor: formatCurrency(saldoPendienteTotal),
+                    label: '$facturasPendientes pendiente${facturasPendientes == 1 ? '' : 's'} de cobro',
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: _MetricaEconomica(
+                    icon: Icons.error_outline,
+                    color: AppColors.error,
+                    valor: '$facturasVencidas',
+                    label: 'Factura${facturasVencidas == 1 ? '' : 's'} vencida${facturasVencidas == 1 ? '' : 's'}',
+                  ),
+                ),
+              ],
+            ),
+            if (presupuestosAceptadosSinFacturar > 0) ...[
+              const Divider(height: AppSpace.lg),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.info_outline,
+                    size: 16,
+                    color: AppColors.inkMuted,
+                  ),
+                  const SizedBox(width: AppSpace.sm),
+                  Expanded(
+                    child: Text(
+                      '$presupuestosAceptadosSinFacturar presupuesto'
+                      '${presupuestosAceptadosSinFacturar == 1 ? '' : 's'} '
+                      'aceptado${presupuestosAceptadosSinFacturar == 1 ? '' : 's'} '
+                      'sin facturar todavía.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            const Divider(height: AppSpace.lg),
+            Text('Últimos 6 meses', style: Theme.of(context).textTheme.bodySmall),
+            const SizedBox(height: AppSpace.sm),
+            _MiniGraficoMensual(meses: evolucionMensual),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _MetricaEconomica extends StatelessWidget {
+  const _MetricaEconomica({
+    required this.icon,
+    required this.color,
+    required this.valor,
+    required this.label,
+  });
+
+  final IconData icon;
+  final Color color;
+  final String valor;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 30,
+          height: 30,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(AppRadius.sm),
+          ),
+          child: Icon(icon, size: 16, color: color),
+        ),
+        const SizedBox(width: AppSpace.sm),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                valor,
+                style: Theme.of(context).textTheme.titleMedium,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+              Text(
+                label,
+                style: Theme.of(context).textTheme.bodySmall,
+                maxLines: 2,
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Barras en proporción al máximo de la ventana de 6 meses -- sin
+/// paquete de gráficos (encargo: no añadir una dependencia grande para
+/// esto). Si no hay ningún importe en toda la ventana, se omiten las
+/// barras en vez de dibujar un gráfico vacío engañoso.
+class _MiniGraficoMensual extends StatelessWidget {
+  const _MiniGraficoMensual({required this.meses});
+
+  final List<_MesEconomico> meses;
+
+  @override
+  Widget build(BuildContext context) {
+    final maximo = meses.fold<double>(
+      0,
+      (m, e) => [m, e.facturado, e.cobrado].reduce((a, b) => a > b ? a : b),
+    );
+    if (maximo <= 0) {
+      return Text(
+        'Todavía no hay facturación registrada.',
+        style: Theme.of(context).textTheme.bodySmall,
+      );
+    }
+    const alturaMax = 56.0;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        for (final m in meses)
+          Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 4 + alturaMax * (m.facturado / maximo),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(width: 3),
+                  Container(
+                    width: 6,
+                    height: 4 + alturaMax * (m.cobrado / maximo),
+                    decoration: BoxDecoration(
+                      color: AppColors.success,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                _mesesCorto[m.mes.month - 1],
+                style: const TextStyle(fontSize: 9.5, color: AppColors.inkFaint),
+              ),
+            ],
+          ),
+      ],
+    );
+  }
+}
+
 class _EventoActividad {
   const _EventoActividad({
     required this.icono,
@@ -431,6 +783,14 @@ List<_EventoActividad> _actividadReciente(AppData appData) {
         fecha: p.creadoEl,
         esDemo: p.esDemo,
       ),
+    for (final f in appData.facturas.facturas)
+      if (f.fechaEmision != null)
+        _EventoActividad(
+          icono: Icons.receipt_long_outlined,
+          texto: 'Factura emitida: ${f.numero ?? f.titulo}',
+          fecha: f.fechaEmision!,
+          esDemo: f.esDemo,
+        ),
   ]..sort((a, b) => b.fecha.compareTo(a.fecha));
   return eventos.take(6).toList();
 }

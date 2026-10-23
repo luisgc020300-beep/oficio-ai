@@ -8,6 +8,8 @@ import 'local/demo_seed.dart';
 import 'local/local_store.dart';
 import 'repositories/cita_repository.dart';
 import 'repositories/cliente_repository.dart';
+import 'repositories/factura_repository.dart';
+import 'repositories/negocio_repository.dart';
 import 'repositories/presupuesto_repository.dart';
 import 'repositories/trabajo_repository.dart';
 
@@ -16,12 +18,16 @@ class AppData {
     : clientes = ClienteRepository(store),
       trabajos = TrabajoRepository(store),
       presupuestos = PresupuestoRepository(store),
-      citas = CitaRepository(store);
+      citas = CitaRepository(store),
+      facturas = FacturaRepository(store),
+      negocio = NegocioRepository(store);
 
   final ClienteRepository clientes;
   final TrabajoRepository trabajos;
   final PresupuestoRepository presupuestos;
   final CitaRepository citas;
+  final FacturaRepository facturas;
+  final NegocioRepository negocio;
 
   static Future<AppData> bootstrap() async {
     final store = await LocalStore.open();
@@ -31,6 +37,8 @@ class AppData {
       data.trabajos.load(),
       data.presupuestos.load(),
       data.citas.load(),
+      data.facturas.load(),
+      data.negocio.load(),
     ]);
     // Solo siembra datos de ejemplo si el usuario nunca ha guardado nada
     // propio todavía -- ver demo_seed.dart.
@@ -38,6 +46,7 @@ class AppData {
     await data.trabajos.seedIfEmpty(demoTrabajos);
     await data.presupuestos.seedIfEmpty(demoPresupuestos);
     await data.citas.seedIfEmpty(demoCitas);
+    await data.facturas.seedIfEmpty(demoFacturas);
     return data;
   }
 }

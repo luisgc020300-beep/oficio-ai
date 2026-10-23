@@ -132,6 +132,11 @@ class _QuoteFormScreenState extends State<QuoteFormScreen> {
   /// de "ya he empezado a editar" (avisa antes de descartarlo).
   bool _tocado = false;
 
+  /// Evita dos diálogos de "¿Descartar los cambios?" apilados si llegan
+  /// dos intentos de navegación seguidos (p. ej. doble toque en atrás)
+  /// antes de que el primero se haya cerrado.
+  bool _confirmandoDescarte = false;
+
   @override
   void dispose() {
     _tituloCtrl.dispose();
@@ -269,24 +274,30 @@ class _QuoteFormScreenState extends State<QuoteFormScreen> {
   }
 
   Future<void> _confirmarDescartar() async {
-    final descartar = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('¿Descartar los cambios?'),
-        content: const Text('Se perderán los cambios que no has guardado.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
-            child: const Text('Seguir editando'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Descartar'),
-          ),
-        ],
-      ),
-    );
-    if (descartar == true && mounted) Navigator.pop(context);
+    if (_confirmandoDescarte) return;
+    _confirmandoDescarte = true;
+    try {
+      final descartar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('¿Descartar los cambios?'),
+          content: const Text('Se perderán los cambios que no has guardado.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Seguir editando'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Descartar'),
+            ),
+          ],
+        ),
+      );
+      if (descartar == true && mounted) Navigator.pop(context);
+    } finally {
+      _confirmandoDescarte = false;
+    }
   }
 
   @override
@@ -364,7 +375,14 @@ class _QuoteFormScreenState extends State<QuoteFormScreen> {
               controller: _tituloCtrl,
               decoration: const InputDecoration(labelText: 'Título *'),
               textCapitalization: TextCapitalization.sentences,
-              onChanged: (_) => _tocado = true,
+              // setState -- sin esto, PopScope(canPop: !_tocado, ...) se
+              // queda con el valor construido la última vez que se
+              // reconstruyó el widget y nunca refleja este cambio si es
+              // el único que se toca (mismo bug corregido en
+              // business_settings_screen.dart, iteración 6.1).
+              onChanged: (_) {
+                if (!_tocado) setState(() => _tocado = true);
+              },
             ),
             const SizedBox(height: AppSpace.lg),
             Text('Conceptos', style: Theme.of(context).textTheme.headlineSmall),

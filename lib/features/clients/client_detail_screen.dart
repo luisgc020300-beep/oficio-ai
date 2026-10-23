@@ -9,6 +9,7 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/app_data.dart';
 import '../../data/models/trabajo.dart';
+import '../invoices/invoice_detail_screen.dart';
 import '../jobs/job_detail_screen.dart';
 import '../jobs/job_form_sheet.dart';
 import '../quotes/quote_detail_screen.dart';
@@ -31,6 +32,7 @@ class ClientDetailScreen extends StatelessWidget {
         appData.clientes,
         appData.trabajos,
         appData.presupuestos,
+        appData.facturas,
       ]),
       builder: (context, _) {
         final cliente = appData.clientes.byId(clienteId);
@@ -41,6 +43,7 @@ class ClientDetailScreen extends StatelessWidget {
         }
         final trabajos = appData.trabajos.porCliente(clienteId);
         final presupuestos = appData.presupuestos.porCliente(clienteId);
+        final facturas = appData.facturas.porCliente(clienteId);
 
         return Scaffold(
           appBar: AppBar(
@@ -213,7 +216,48 @@ class ClientDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-              if (trabajos.isEmpty && presupuestos.isEmpty) ...[
+              const SizedBox(height: AppSpace.lg),
+              const SectionHeader(title: 'Facturas'),
+              const SizedBox(height: AppSpace.sm),
+              if (facturas.isEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpace.md),
+                    child: Text(
+                      'Sin facturas todavía.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                )
+              else
+                Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < facturas.length; i++) ...[
+                        if (i > 0) const Divider(height: 1, indent: 16),
+                        ListTile(
+                          title: Text(facturas[i].numero ?? facturas[i].titulo),
+                          subtitle: Text(
+                            '${etiquetaFactura(facturas[i])} · '
+                            '${formatCurrency(facturas[i].totales.total)}',
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => InvoiceDetailScreen(
+                                appData: appData,
+                                facturaId: facturas[i].id,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              if (trabajos.isEmpty && presupuestos.isEmpty && facturas.isEmpty) ...[
                 const SizedBox(height: AppSpace.lg),
                 const EmptyState(
                   icon: Icons.work_outline,

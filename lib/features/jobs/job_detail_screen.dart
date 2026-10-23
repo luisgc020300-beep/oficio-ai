@@ -6,8 +6,11 @@ import '../../core/utils/formatters.dart';
 import '../../core/widgets/confirm_delete_dialog.dart';
 import '../../core/widgets/demo_tag.dart';
 import '../../data/app_data.dart';
+import '../../data/models/concepto_presupuesto.dart';
 import '../../data/models/trabajo.dart';
 import '../calendar/appointment_form_sheet.dart';
+import '../invoices/invoice_detail_screen.dart';
+import '../invoices/invoice_form_screen.dart';
 import '../quotes/quote_detail_screen.dart';
 import 'job_form_sheet.dart';
 
@@ -36,6 +39,7 @@ class JobDetailScreen extends StatelessWidget {
         appData.clientes,
         appData.presupuestos,
         appData.citas,
+        appData.facturas,
       ]),
       builder: (context, _) {
         final trabajo = appData.trabajos.byId(trabajoId);
@@ -50,6 +54,8 @@ class JobDetailScreen extends StatelessWidget {
             : null;
         final citas = appData.citas.porTrabajo(trabajo.id)
           ..sort((a, b) => a.fechaHora.compareTo(b.fechaHora));
+        final facturas = appData.facturas.porTrabajo(trabajo.id)
+          ..sort((a, b) => b.creadaEl.compareTo(a.creadaEl));
         final color = _colorEstadoTrabajo(trabajo.estado);
 
         return Scaffold(
@@ -206,6 +212,85 @@ class JobDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ),
+              const SizedBox(height: AppSpace.lg),
+              Text('Facturas', style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: AppSpace.sm),
+              if (facturas.isEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpace.md),
+                    child: Text(
+                      trabajo.estado == EstadoTrabajo.finalizado
+                          ? 'Este trabajo todavía no tiene factura.'
+                          : 'Se podrá facturar cuando el trabajo esté terminado.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                )
+              else
+                Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < facturas.length; i++) ...[
+                        if (i > 0) const Divider(height: 1, indent: 16),
+                        ListTile(
+                          leading: Icon(
+                            Icons.receipt_long_outlined,
+                            color: colorEstadoFactura(facturas[i]),
+                          ),
+                          title: Text(facturas[i].numero ?? facturas[i].titulo),
+                          subtitle: Text(
+                            '${etiquetaFactura(facturas[i])} · '
+                            '${formatCurrency(facturas[i].totales.total)}',
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => InvoiceDetailScreen(
+                                appData: appData,
+                                facturaId: facturas[i].id,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              if (trabajo.estado == EstadoTrabajo.finalizado) ...[
+                const SizedBox(height: AppSpace.sm),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => InvoiceFormScreen(
+                          appData: appData,
+                          clienteIdFijo: trabajo.clienteId,
+                          trabajoIdFijo: trabajo.id,
+                          presupuestoIdFijo: trabajo.presupuestoId,
+                          tituloInicial: 'Factura · ${trabajo.titulo}',
+                          conceptosIniciales: presupuesto?.conceptos
+                              .map(
+                                (c) => ConceptoPresupuesto(
+                                  id: c.id,
+                                  descripcion: c.descripcion,
+                                  cantidad: c.cantidad,
+                                  precioUnitario: c.precioUnitario,
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.receipt_long_outlined, size: 18),
+                    label: Text(facturas.isEmpty ? 'Crear factura' : 'Crear otra factura'),
+                  ),
+                ),
+              ],
               const SizedBox(height: AppSpace.lg),
               Text(
                 'Citas programadas',

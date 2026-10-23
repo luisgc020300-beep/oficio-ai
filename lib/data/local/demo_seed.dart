@@ -7,6 +7,8 @@
 import '../models/cita.dart';
 import '../models/cliente.dart';
 import '../models/concepto_presupuesto.dart';
+import '../models/factura.dart';
+import '../models/pago_factura.dart';
 import '../models/presupuesto.dart';
 import '../models/trabajo.dart';
 
@@ -116,6 +118,66 @@ final demoPresupuestos = [
         descripcion: 'Mano de obra instalación',
         cantidad: 3,
         precioUnitario: 32,
+      ),
+    ],
+  ),
+];
+
+final demoFacturas = [
+  Factura(
+    id: 'demo-factura-1',
+    esDemo: true,
+    clienteId: 'demo-cliente-3',
+    trabajoId: 'demo-trabajo-3',
+    presupuestoId: 'demo-presupuesto-2',
+    titulo: 'Factura instalación termo',
+    estado: EstadoFactura.emitida,
+    anio: DateTime.now().subtract(const Duration(days: 10)).year,
+    numeroSecuencial: 1,
+    creadaEl: DateTime.now().subtract(const Duration(days: 11)),
+    fechaEmision: DateTime.now().subtract(const Duration(days: 10)),
+    conceptos: const [
+      ConceptoPresupuesto(
+        id: 'c1',
+        descripcion: 'Termo eléctrico 80L',
+        cantidad: 1,
+        precioUnitario: 210,
+      ),
+      ConceptoPresupuesto(
+        id: 'c2',
+        descripcion: 'Mano de obra instalación',
+        cantidad: 3,
+        precioUnitario: 32,
+      ),
+    ],
+    pagos: [
+      PagoFactura(
+        id: 'demo-pago-1',
+        fecha: DateTime.now().subtract(const Duration(days: 9)),
+        importe: 370.26,
+        metodo: MetodoPago.transferencia,
+        nota: 'Pago único por transferencia',
+        registradoEl: DateTime.now().subtract(const Duration(days: 9)),
+      ),
+    ],
+  ),
+  Factura(
+    id: 'demo-factura-2',
+    esDemo: true,
+    clienteId: 'demo-cliente-2',
+    titulo: 'Anticipo revisión eléctrica',
+    estado: EstadoFactura.emitida,
+    anio: DateTime.now().subtract(const Duration(days: 40)).year,
+    numeroSecuencial: 2,
+    creadaEl: DateTime.now().subtract(const Duration(days: 41)),
+    fechaEmision: DateTime.now().subtract(const Duration(days: 40)),
+    fechaVencimiento: DateTime.now().subtract(const Duration(days: 25)),
+    conceptos: const [
+      ConceptoPresupuesto(
+        id: 'c1',
+        descripcion: 'Anticipo revisión instalación eléctrica',
+        cantidad: 1,
+        precioUnitario: 150,
       ),
     ],
   ),

@@ -12,6 +12,7 @@ import 'features/assistant/assistant_screen.dart';
 import 'features/calendar/calendar_screen.dart';
 import 'features/clients/clients_list_screen.dart';
 import 'features/dashboard/dashboard_screen.dart';
+import 'features/invoices/invoices_list_screen.dart';
 import 'features/jobs/jobs_list_screen.dart';
 import 'features/quotes/quotes_list_screen.dart';
 
@@ -36,10 +37,12 @@ class _AppShellState extends State<AppShell> {
         appData: widget.appData,
         onVerTrabajos: () => _irA(2),
         onVerPresupuestos: () => _irA(3),
+        onVerFacturas: () => _irA(4),
       ),
       ClientsListScreen(appData: widget.appData),
       JobsListScreen(appData: widget.appData),
       QuotesListScreen(appData: widget.appData),
+      InvoicesListScreen(appData: widget.appData),
       CalendarScreen(appData: widget.appData),
       AssistantScreen(appData: widget.appData),
     ];
@@ -87,6 +90,11 @@ class _AppShellState extends State<AppShell> {
               icon: Icon(Icons.request_quote_outlined),
               selectedIcon: Icon(Icons.request_quote),
               label: 'Presupuestos',
+            ),
+            NavigationDestination(
+              icon: Icon(Icons.receipt_long_outlined),
+              selectedIcon: Icon(Icons.receipt_long),
+              label: 'Facturas',
             ),
             NavigationDestination(
               icon: Icon(Icons.calendar_month_outlined),
