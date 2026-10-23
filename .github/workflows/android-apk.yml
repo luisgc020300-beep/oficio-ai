@@ -1,0 +1,145 @@
+name: Mobile Builds (Android + iOS)
+
+on:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.9'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Flutter analyze
+        run: flutter analyze
+
+      - name: Flutter test
+        run: flutter test
+
+  build_apk:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.9'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Build debug APK
+        run: flutter build apk --debug
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: oficio-ai-debug-apk
+          path: build/app/outputs/flutter-apk/app-debug.apk
+          retention-days: 14
+
+  build_ios:
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.9'
+          channel: 'stable'
+          cache: true
+
+      - name: Flutter pub get
+        run: flutter pub get
+
+      - name: Generate Flutter iOS config
+        run: flutter build ios --config-only --release --no-codesign
+
+      - name: Setup Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.2'
+
+      - name: Install CocoaPods
+        run: gem install cocoapods --no-document
+
+      - name: Pod install
+        working-directory: ios
+        run: |
+          rm -rf Pods Podfile.lock
+          pod install --repo-update
+        env:
+          COCOAPODS_DISABLE_STATS: true
+
+      - name: Flutter build iOS (sin firmar)
+        run: flutter build ios --release --no-codesign
+
+      - name: Archive with xcodebuild
+        run: |
+          xcodebuild \
+            -workspace ios/Runner.xcworkspace \
+            -scheme Runner \
+            -configuration Release \
+            -destination generic/platform=iOS \
+            -archivePath $GITHUB_WORKSPACE/build/Runner.xcarchive \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            IPHONEOS_DEPLOYMENT_TARGET=13.0 \
+            archive
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH=$(find "$GITHUB_WORKSPACE/build/Runner.xcarchive/Products/Applications" -name "*.app" -type d | head -1)
+          if [ -z "$APP_PATH" ]; then
+            APP_PATH=$(find "$GITHUB_WORKSPACE/build/Runner.xcarchive" -name "*.app" -type d | head -1)
+          fi
+          echo "Using app at: $APP_PATH"
+          mkdir -p "$GITHUB_WORKSPACE/build/ipa/Payload"
+          cp -r "$APP_PATH" "$GITHUB_WORKSPACE/build/ipa/Payload/"
+          cd "$GITHUB_WORKSPACE/build/ipa"
+          zip -r "$GITHUB_WORKSPACE/oficio-ai-unsigned.ipa" Payload/
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: oficio-ai-ios-unsigned
+          path: ${{ github.workspace }}/oficio-ai-unsigned.ipa
+          retention-days: 14
