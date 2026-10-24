@@ -7,6 +7,7 @@
 // este modelo, y el campo esDemo (encargo iteración 5, sección 12,
 // puntos 1, 2, 8, 12, 14 y 17).
 import 'package:flutter_test/flutter_test.dart';
+import 'package:oficio_ai/data/models/cliente_snapshot.dart';
 import 'package:oficio_ai/data/models/concepto_presupuesto.dart';
 import 'package:oficio_ai/data/models/factura.dart';
 import 'package:oficio_ai/data/models/factura_totals.dart';
@@ -22,6 +23,13 @@ Factura _facturaBase({
   DateTime? fechaEmision,
   DateTime? fechaVencimiento,
   List<PagoFactura> pagos = const [],
+  ClienteSnapshot? datosCliente,
+  TipoDocumentoFactura tipoDocumento = TipoDocumentoFactura.ordinaria,
+  String serie = '',
+  String? facturaOriginalId,
+  String? motivoRectificacion,
+  ModalidadRectificacion? modalidadRectificacion,
+  double? importeRectificacion,
 }) => Factura(
   id: 'f1',
   clienteId: 'c1',
@@ -45,6 +53,13 @@ Factura _facturaBase({
   fechaEmision: fechaEmision,
   fechaVencimiento: fechaVencimiento,
   pagos: pagos,
+  datosCliente: datosCliente,
+  tipoDocumento: tipoDocumento,
+  serie: serie,
+  facturaOriginalId: facturaOriginalId,
+  motivoRectificacion: motivoRectificacion,
+  modalidadRectificacion: modalidadRectificacion,
+  importeRectificacion: importeRectificacion,
 );
 
 void main() {
@@ -294,7 +309,8 @@ void main() {
         'estado': 'emitida',
         'creadaEl': DateTime(2026).toIso8601String(),
         // Sin ivaPorcentaje, descuentoPorcentaje, anio, numeroSecuencial,
-        // fechaEmision, pagos ni esDemo.
+        // fechaEmision, pagos, esDemo, datosEmisor ni datosCliente --
+        // así se guardaba antes de que existiera cada campo.
       };
       final f = Factura.fromJson(jsonAntiguo);
       expect(f.ivaPorcentaje, 21);
@@ -303,6 +319,192 @@ void main() {
       expect(f.pagos, isEmpty);
       expect(f.esDemo, isFalse);
       expect(f.saldoPendiente, 0);
+      // Ni el emisor ni el cliente se rellenan con nada por defecto --
+      // una ausencia en el JSON antiguo se queda en null, nunca se
+      // sustituye en silencio (iteración 6/7.1).
+      expect(f.datosEmisor, isNull);
+      expect(f.datosCliente, isNull);
+    });
+
+    test('datosCliente sobrevive el ciclo toJson/fromJson con todos sus '
+        'campos (iteración 7.1/7.2)', () {
+      const snapshot = ClienteSnapshot(
+        nombre: 'Ana Rodríguez Jiménez',
+        telefono: '611 222 333',
+        email: 'ana@email.com',
+        direccion: 'Avenida de España 22, Getafe',
+      );
+      final f = _facturaBase(
+        estado: EstadoFactura.emitida,
+        anio: 2026,
+        numeroSecuencial: 1,
+        datosCliente: snapshot,
+      );
+      final restaurada = Factura.fromJson(f.toJson());
+      expect(restaurada.datosCliente?.nombre, 'Ana Rodríguez Jiménez');
+      expect(restaurada.datosCliente?.telefono, '611 222 333');
+      expect(restaurada.datosCliente?.email, 'ana@email.com');
+      expect(restaurada.datosCliente?.direccion, 'Avenida de España 22, Getafe');
+    });
+  });
+
+  group('rectificativas (iteración 8)', () {
+    test('una factura ordinaria tiene tipoDocumento ordinaria y serie '
+        'vacía por defecto -- numero no cambia de formato', () {
+      final f = _facturaBase(estado: EstadoFactura.emitida, anio: 2026, numeroSecuencial: 7);
+      expect(f.tipoDocumento, TipoDocumentoFactura.ordinaria);
+      expect(f.serie, '');
+      expect(f.numero, '2026-0007');
+    });
+
+    test('una rectificativa antepone la serie "R" al número', () {
+      final f = _facturaBase(
+        estado: EstadoFactura.emitida,
+        anio: 2026,
+        numeroSecuencial: 3,
+        serie: serieRectificativas,
+        tipoDocumento: TipoDocumentoFactura.rectificativa,
+        facturaOriginalId: 'original-1',
+        motivoRectificacion: 'Error en el IVA aplicado',
+        modalidadRectificacion: ModalidadRectificacion.porDiferencias,
+      );
+      expect(f.numero, 'R-2026-0003');
+    });
+
+    test('la relación con la factura original, el motivo y la modalidad '
+        'sobreviven el ciclo toJson/fromJson', () {
+      final f = _facturaBase(
+        estado: EstadoFactura.emitida,
+        anio: 2026,
+        numeroSecuencial: 1,
+        serie: serieRectificativas,
+        tipoDocumento: TipoDocumentoFactura.rectificativa,
+        facturaOriginalId: 'original-1',
+        motivoRectificacion: 'Descuento no aplicado',
+        modalidadRectificacion: ModalidadRectificacion.importeResultante,
+        importeRectificacion: -12.5,
+      );
+      final restaurada = Factura.fromJson(f.toJson());
+      expect(restaurada.tipoDocumento, TipoDocumentoFactura.rectificativa);
+      expect(restaurada.serie, serieRectificativas);
+      expect(restaurada.facturaOriginalId, 'original-1');
+      expect(restaurada.motivoRectificacion, 'Descuento no aplicado');
+      expect(restaurada.modalidadRectificacion, ModalidadRectificacion.importeResultante);
+      expect(restaurada.importeRectificacion, -12.5);
+    });
+
+    test('un JSON de antes de la iteración 8 (sin ninguno de estos '
+        'campos) se lee como factura ordinaria, sin relación de '
+        'rectificación -- nunca se infiere ninguna', () {
+      final jsonAntiguo = {
+        'id': '1',
+        'clienteId': 'c1',
+        'titulo': 'Factura mínima',
+        'conceptos': <Map<String, dynamic>>[],
+        'estado': 'emitida',
+        'anio': 2026,
+        'numeroSecuencial': 5,
+        'creadaEl': DateTime(2026).toIso8601String(),
+      };
+      final f = Factura.fromJson(jsonAntiguo);
+      expect(f.tipoDocumento, TipoDocumentoFactura.ordinaria);
+      expect(f.serie, '');
+      expect(f.numero, '2026-0005'); // mismo formato de siempre
+      expect(f.facturaOriginalId, isNull);
+      expect(f.motivoRectificacion, isNull);
+      expect(f.modalidadRectificacion, isNull);
+      expect(f.importeRectificacion, isNull);
+    });
+
+    test('calcularImporteRectificacion es la resta de los totales ya '
+        'calculados, con su signo -- una reducción da negativo', () {
+      expect(
+        calcularImporteRectificacion(totalOriginal: 121, totalCorregido: 90.75),
+        -30.25,
+      );
+      expect(
+        calcularImporteRectificacion(totalOriginal: 100, totalCorregido: 150),
+        50,
+      );
+    });
+
+    test('una rectificativa nunca tiene saldo pendiente, aunque su '
+        'propio total (modalidad importe resultante) sea positivo -- '
+        'el cobro sigue viviendo en la factura original', () {
+      final f = _facturaBase(
+        conceptos: const [
+          ConceptoPresupuesto(
+            id: 'c1',
+            descripcion: 'Servicio corregido',
+            cantidad: 1,
+            precioUnitario: 200,
+          ),
+        ],
+        estado: EstadoFactura.emitida,
+        anio: 2026,
+        numeroSecuencial: 1,
+        tipoDocumento: TipoDocumentoFactura.rectificativa,
+        serie: serieRectificativas,
+        facturaOriginalId: 'original-1',
+        modalidadRectificacion: ModalidadRectificacion.importeResultante,
+        importeRectificacion: 50,
+      );
+      expect(f.totales.total, greaterThan(0)); // el total del documento sí es positivo
+      expect(f.saldoPendiente, 0);
+      expect(f.pagadaCompleta, isTrue);
+    });
+
+    test('importeFacturacion: en "por diferencias" coincide con el '
+        'total del documento; en "importe resultante" usa la '
+        'diferencia guardada, no el total completo -- evita la doble '
+        'contabilización en los indicadores agregados', () {
+      final porDiferencias = _facturaBase(
+        conceptos: const [
+          ConceptoPresupuesto(
+            id: 'c1',
+            descripcion: 'Corrección',
+            cantidad: 1,
+            precioUnitario: -30,
+          ),
+        ],
+        descuento: 0,
+        estado: EstadoFactura.emitida,
+        anio: 2026,
+        numeroSecuencial: 1,
+        tipoDocumento: TipoDocumentoFactura.rectificativa,
+        serie: serieRectificativas,
+        facturaOriginalId: 'original-1',
+        modalidadRectificacion: ModalidadRectificacion.porDiferencias,
+      );
+      expect(porDiferencias.importeFacturacion, porDiferencias.totales.total);
+
+      final importeResultante = _facturaBase(
+        conceptos: const [
+          ConceptoPresupuesto(
+            id: 'c1',
+            descripcion: 'Servicio corregido',
+            cantidad: 1,
+            precioUnitario: 90,
+          ),
+        ],
+        estado: EstadoFactura.emitida,
+        anio: 2026,
+        numeroSecuencial: 2,
+        tipoDocumento: TipoDocumentoFactura.rectificativa,
+        serie: serieRectificativas,
+        facturaOriginalId: 'original-1',
+        modalidadRectificacion: ModalidadRectificacion.importeResultante,
+        importeRectificacion: -36.3,
+      );
+      expect(importeResultante.importeFacturacion, -36.3);
+      expect(importeResultante.importeFacturacion, isNot(importeResultante.totales.total));
+    });
+
+    test('una factura ordinaria usa siempre su propio total en '
+        'importeFacturacion, nunca importeRectificacion (que ni '
+        'siquiera tiene)', () {
+      final f = _facturaBase(estado: EstadoFactura.emitida, anio: 2026, numeroSecuencial: 1);
+      expect(f.importeFacturacion, f.totales.total);
     });
   });
 }

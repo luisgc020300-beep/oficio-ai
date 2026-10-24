@@ -28,6 +28,9 @@ class InvoicePdfPreviewScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final cliente = appData.clientes.byId(factura.clienteId);
     final nombreArchivo = FacturaPdfService.nombreArchivo(factura);
+    final facturaOriginal = factura.facturaOriginalId != null
+        ? appData.facturas.byId(factura.facturaOriginalId!)
+        : null;
 
     return Scaffold(
       appBar: AppBar(
@@ -64,6 +67,7 @@ class InvoicePdfPreviewScreen extends StatelessWidget {
                 factura: factura,
                 cliente: cliente,
                 datosNegocioActual: appData.negocio.datos,
+                facturaOriginal: facturaOriginal,
               ),
               pdfFileName: nombreArchivo,
               canChangePageFormat: false,

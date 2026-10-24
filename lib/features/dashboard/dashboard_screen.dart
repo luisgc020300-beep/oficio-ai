@@ -122,6 +122,11 @@ class DashboardScreen extends StatelessWidget {
             hoyEconomico.year,
             hoyEconomico.month + 1,
           );
+          // f.importeFacturacion, no f.totales.total: una rectificativa
+          // en modalidad "importe resultante" declara el importe YA
+          // corregido (no la diferencia) -- sumar eso junto al importe
+          // sin cambios de la original contaría la operación dos veces
+          // (iteración 8, ver Factura.importeFacturacion).
           final totalFacturadoMes = facturas
               .where(
                 (f) =>
@@ -130,7 +135,7 @@ class DashboardScreen extends StatelessWidget {
                     !f.fechaEmision!.isBefore(inicioMes) &&
                     f.fechaEmision!.isBefore(inicioMesSiguiente),
               )
-              .fold<double>(0, (acc, f) => acc + f.totales.total);
+              .fold<double>(0, (acc, f) => acc + f.importeFacturacion);
           final totalCobradoMes = facturas
               .expand((f) => f.pagos)
               .where(
@@ -177,7 +182,7 @@ class DashboardScreen extends StatelessWidget {
                       !f.fechaEmision!.isBefore(inicio) &&
                       f.fechaEmision!.isBefore(finExclusive),
                 )
-                .fold<double>(0, (acc, f) => acc + f.totales.total);
+                .fold<double>(0, (acc, f) => acc + f.importeFacturacion);
             final cobrado = facturas
                 .expand((f) => f.pagos)
                 .where(

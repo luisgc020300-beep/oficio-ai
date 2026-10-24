@@ -13,6 +13,7 @@ import '../local/local_store.dart';
 import '../models/cliente_snapshot.dart';
 import '../models/datos_negocio.dart';
 import '../models/factura.dart';
+import '../models/factura_totals.dart';
 import '../models/pago_factura.dart';
 
 class FacturaRepository extends ChangeNotifier {
@@ -41,6 +42,20 @@ class FacturaRepository extends ChangeNotifier {
     return null;
   }
 
+  /// Rectificativas que referencian [facturaOriginalId] -- el lado
+  /// "hacia delante" del historial original/rectificativa (iteración
+  /// 8); el lado "hacia atrás" es simplemente
+  /// `byId(factura.facturaOriginalId)`. No hay límite de cuántas puede
+  /// haber: corregir una rectificativa anterior es un caso real, no se
+  /// bloquea aquí.
+  List<Factura> rectificativasDe(String facturaOriginalId) => _facturas
+      .where(
+        (f) =>
+            f.tipoDocumento == TipoDocumentoFactura.rectificativa &&
+            f.facturaOriginalId == facturaOriginalId,
+      )
+      .toList();
+
   Future<void> load() async {
     final raw = _store.readList(_key);
     _facturas = raw.map(Factura.fromJson).toList()
@@ -55,11 +70,53 @@ class FacturaRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Crea un borrador -- también el de una rectificativa (iteración 8):
+  /// no hace falta un método aparte, se reutiliza esta misma vía y
+  /// luego emitir() de siempre, igual que una factura ordinaria. Lo
+  /// único distinto es la validación de abajo, exclusiva de
+  /// rectificativas: referenciar una factura inexistente, o una que
+  /// todavía no se ha emitido, se rechaza aquí mismo -- nunca se llega
+  /// a guardar un borrador con una relación que no se pueda honrar.
+  /// Como ninguna factura emitida puede borrarse después (ver
+  /// delete()/anular()), una vez superada esta comprobación la relación
+  /// no puede romperse por nada que el repositorio permita hacer.
   Future<void> add(Factura factura) async {
     if (factura.estado != EstadoFactura.borrador) {
       throw StateError('Una factura nueva solo puede crearse como borrador.');
     }
-    await _guardar([..._facturas, factura]);
+    var aGuardar = factura;
+    if (factura.tipoDocumento == TipoDocumentoFactura.rectificativa) {
+      final originalId = factura.facturaOriginalId;
+      if (originalId == null || originalId.trim().isEmpty) {
+        throw StateError(
+          'Una rectificativa debe indicar la factura que corrige.',
+        );
+      }
+      final original = byId(originalId);
+      if (original == null) {
+        throw StateError('La factura original a rectificar ya no existe.');
+      }
+      if (original.estado != EstadoFactura.emitida) {
+        throw StateError(
+          'Solo se puede rectificar una factura ya emitida.',
+        );
+      }
+      // El importe de la rectificación se calcula aquí, nunca se
+      // confía en lo que pase quien llama -- mismo criterio que
+      // numeroSecuencial en emitir(). Solo aplica a la modalidad que
+      // declara el importe YA corregido (ver Factura.importeFacturacion
+      // sobre por qué, si no, se contaría la operación dos veces en los
+      // indicadores agregados).
+      if (factura.modalidadRectificacion == ModalidadRectificacion.importeResultante) {
+        aGuardar = factura.copyWith(
+          importeRectificacion: calcularImporteRectificacion(
+            totalOriginal: original.totales.total,
+            totalCorregido: factura.totales.total,
+          ),
+        );
+      }
+    }
+    await _guardar([..._facturas, aGuardar]);
   }
 
   /// Solo permite editar una factura mientras es borrador -- una vez
@@ -100,8 +157,15 @@ class FacturaRepository extends ChangeNotifier {
   /// Asigna número y fecha de emisión y pasa la factura a "emitida".
   /// El correlativo se calcula aquí, nunca lo elige quien llama, para
   /// que sea imposible pedir dos veces el mismo número por error: se
-  /// toma el máximo ya usado en el año de emisión y se suma 1. Al no
-  /// numerarse los borradores, descartar uno nunca deja un hueco.
+  /// toma el máximo ya usado dentro del mismo año Y LA MISMA SERIE
+  /// (iteración 8 -- antes solo importaba el año, pero una
+  /// rectificativa necesita su propia secuencia dentro de
+  /// [serieRectificativas], sin compartirla con las facturas
+  /// ordinarias ni dejar que las interrumpa; ver Factura.serie) y se
+  /// suma 1. Al no numerarse los borradores, descartar uno nunca deja
+  /// un hueco. Esto no cambia el comportamiento de las facturas
+  /// ordinarias ya existentes: su serie siempre ha sido '', así que el
+  /// conjunto que se compara es el mismo que antes.
   /// [datosEmisor] se exige completo (ver DatosNegocio.listoParaFacturar)
   /// porque es el respaldo de última instancia de la regla de negocio
   /// "sin datos del emisor no se emite" -- la pantalla ya hace esta
@@ -137,11 +201,22 @@ class FacturaRepository extends ChangeNotifier {
         '${datosEmisor.camposFaltantesParaFacturar.join(', ')}.',
       );
     }
+    if (actual.tipoDocumento == TipoDocumentoFactura.rectificativa &&
+        (actual.motivoRectificacion?.trim().isEmpty ?? true)) {
+      throw StateError(
+        'Indica el motivo de la rectificación antes de emitirla.',
+      );
+    }
     final ahora = DateTime.now();
     final anio = ahora.year;
     final siguiente =
         _facturas
-            .where((f) => f.anio == anio && f.numeroSecuencial != null)
+            .where(
+              (f) =>
+                  f.anio == anio &&
+                  f.serie == actual.serie &&
+                  f.numeroSecuencial != null,
+            )
             .map((f) => f.numeroSecuencial!)
             .fold<int>(0, (max, n) => n > max ? n : max) +
         1;
@@ -197,6 +272,12 @@ class FacturaRepository extends ChangeNotifier {
     }
     if (actual.estado != EstadoFactura.emitida) {
       throw StateError('Solo se pueden registrar cobros en facturas emitidas.');
+    }
+    if (actual.tipoDocumento == TipoDocumentoFactura.rectificativa) {
+      throw StateError(
+        'Una rectificativa no registra cobros propios -- gestiona el '
+        'cobro sobre la factura original.',
+      );
     }
     if (importe <= 0) {
       throw ArgumentError('El importe del pago debe ser mayor que cero.');

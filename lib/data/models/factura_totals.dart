@@ -31,6 +31,18 @@ class FacturaTotals {
 
 double redondear2(double v) => (v * 100).round() / 100;
 
+/// Importe neto de una rectificativa en modalidad
+/// [ModalidadRectificacion.importeResultante] (iteración 8, art. 15.5 RD
+/// 1619/2012): no es una fórmula fiscal nueva, es la resta de dos
+/// totales que ya salen de [calcularTotalesFactura] -- la norma exige
+/// que, aunque esta modalidad consigne el importe YA corregido en vez
+/// de la diferencia, se "señale igualmente el importe de la
+/// rectificación".
+double calcularImporteRectificacion({
+  required double totalOriginal,
+  required double totalCorregido,
+}) => redondear2(totalCorregido - totalOriginal);
+
 FacturaTotals calcularTotalesFactura(
   List<ConceptoPresupuesto> conceptos,
   double ivaPorcentaje,

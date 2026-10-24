@@ -10,6 +10,7 @@
 // cual vienen de Factura.totales/totalCobrado/saldoPendiente.
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -48,12 +49,26 @@ class FacturaPdfService {
   static Future<pw.ThemeData> _tema() async {
     final cacheado = _temaCacheado;
     if (cacheado != null) return cacheado;
-    final regular = await rootBundle.load('assets/fonts/PTSans-Regular.ttf');
-    final negrita = await rootBundle.load('assets/fonts/PTSans-Bold.ttf');
-    final tema = pw.ThemeData.withFont(
-      base: pw.Font.ttf(regular),
-      bold: pw.Font.ttf(negrita),
-    );
+    pw.ThemeData tema;
+    try {
+      final regular = await rootBundle.load('assets/fonts/PTSans-Regular.ttf');
+      final negrita = await rootBundle.load('assets/fonts/PTSans-Bold.ttf');
+      tema = pw.ThemeData.withFont(
+        base: pw.Font.ttf(regular),
+        bold: pw.Font.ttf(negrita),
+      );
+    } catch (e, st) {
+      // PT Sans va empaquetada en el APK/IPA (ver pubspec.yaml) -- un
+      // fallo aquí sería un error de empaquetado, no una condición
+      // esperada en producción. Se degrada a la fuente base del paquete
+      // `pdf` (Helvetica, sin "€" ni acentos) en vez de impedir generar
+      // el documento entero por un problema de tipografía.
+      debugPrint(
+        'FacturaPdfService: no se pudo cargar PT Sans, se usa la fuente '
+        'base sin "€" ni acentos. $e\n$st',
+      );
+      tema = pw.ThemeData.base();
+    }
     _temaCacheado = tema;
     return tema;
   }
@@ -116,11 +131,27 @@ class FacturaPdfService {
 
   /// Genera el documento. No modifica la factura ni nada del repositorio
   /// -- es una función pura de los datos que recibe.
+  ///
+  /// [facturaOriginal] (iteración 8) es obligatorio cuando [factura] es
+  /// una rectificativa -- quien llama la resuelve con
+  /// `appData.facturas.byId(factura.facturaOriginalId)` (este servicio
+  /// no conoce ningún repositorio, igual que ya pasa con [cliente]). Si
+  /// falta, no se genera un documento incompleto que pueda confundirse
+  /// con uno fiable: se lanza con un mensaje claro en vez de omitir en
+  /// silencio la referencia a la factura rectificada.
   static Future<Uint8List> generar({
     required Factura factura,
     Cliente? cliente,
     DatosNegocio? datosNegocioActual,
+    Factura? facturaOriginal,
   }) async {
+    final esRectificativa = factura.tipoDocumento == TipoDocumentoFactura.rectificativa;
+    if (esRectificativa && facturaOriginal == null) {
+      throw StateError(
+        'No se puede generar el PDF de la rectificativa: no se encuentra '
+        'la factura original que corrige.',
+      );
+    }
     final datosEmisor = datosEmisorParaDocumento(factura, datosNegocioActual);
     final datosCliente = datosClienteParaDocumento(factura, cliente);
     final esBorrador = factura.estado == EstadoFactura.borrador;
@@ -140,8 +171,14 @@ class FacturaPdfService {
         margin: const pw.EdgeInsets.fromLTRB(36, 40, 36, 36),
         footer: (context) => _piePagina(context),
         build: (context) => [
-          _cabecera(factura, esBorrador: esBorrador, esAnulada: esAnulada),
+          _cabecera(
+            factura,
+            esBorrador: esBorrador,
+            esAnulada: esAnulada,
+            esRectificativa: esRectificativa,
+          ),
           pw.SizedBox(height: 18),
+          if (esRectificativa) _bloqueRectificacion(factura, facturaOriginal!),
           if (faltaHistorial) _avisoDatosHistoricosFaltantes(),
           if (esBorrador) _avisoBorrador(),
           if (esAnulada) _avisoAnulada(factura),
@@ -179,6 +216,7 @@ class FacturaPdfService {
     Factura factura, {
     required bool esBorrador,
     required bool esAnulada,
+    required bool esRectificativa,
   }) {
     final etiquetaEstado = esAnulada
         ? 'ANULADA'
@@ -191,7 +229,7 @@ class FacturaPdfService {
       mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
       children: [
         pw.Text(
-          'FACTURA',
+          esRectificativa ? 'FACTURA RECTIFICATIVA' : 'FACTURA',
           style: pw.TextStyle(
             fontSize: 22,
             fontWeight: pw.FontWeight.bold,
@@ -271,6 +309,35 @@ class FacturaPdfService {
       '${factura.motivoAnulacion != null ? '. Motivo: ${factura.motivoAnulacion}' : ''}. '
       'No tiene validez como documento vigente.',
       style: pw.TextStyle(fontSize: 8.5, color: _pdfError, fontWeight: pw.FontWeight.bold),
+    ),
+  );
+
+  /// Identifica sin ambigüedad qué factura se corrige y por qué (art.
+  /// 15.4 RD 1619/2012: la rectificativa debe identificar la factura
+  /// rectificada) -- [original] viene ya resuelto por quien llama
+  /// (ver [generar]), nunca se recalcula ni se toca aquí.
+  static pw.Widget _bloqueRectificacion(Factura factura, Factura original) => pw.Container(
+    margin: const pw.EdgeInsets.only(bottom: 14),
+    padding: const pw.EdgeInsets.all(8),
+    decoration: pw.BoxDecoration(
+      color: _pdfSurfaceMuted,
+      borderRadius: pw.BorderRadius.circular(4),
+      border: pw.Border.all(color: _pdfBorder),
+    ),
+    child: pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'Rectifica a la factura ${original.numero ?? "sin número"}'
+          '${original.fechaEmision != null ? ', emitida el ${formatDate(original.fechaEmision!)}' : ''}.',
+          style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold, color: _pdfInk),
+        ),
+        pw.SizedBox(height: 2),
+        pw.Text(
+          'Motivo: ${factura.motivoRectificacion?.trim().isNotEmpty ?? false ? factura.motivoRectificacion : "sin motivo indicado"}',
+          style: const pw.TextStyle(fontSize: 9, color: _pdfInkMuted),
+        ),
+      ],
     ),
   );
 
@@ -449,7 +516,11 @@ class FacturaPdfService {
       child: pw.Row(
         mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
         children: [
-          pw.Text(etiqueta, style: estilo),
+          // Expanded -- etiquetas largas de rectificativa ("IMPORTE DE
+          // LA RECTIFICACIÓN") en estilo destacado, dentro de un bloque
+          // de ancho fijo (ver generar()), no deben superponerse con el
+          // importe.
+          pw.Expanded(child: pw.Text(etiqueta, style: estilo)),
           pw.Text(_moneda(valor), style: estilo),
         ],
       ),
@@ -457,6 +528,19 @@ class FacturaPdfService {
   }
 
   static pw.Widget _bloqueTotales(Factura factura, FacturaTotals totales) {
+    final esRectificativa = factura.tipoDocumento == TipoDocumentoFactura.rectificativa;
+    final esImporteResultante =
+        factura.modalidadRectificacion == ModalidadRectificacion.importeResultante;
+    // Art. 15.5 RD 1619/2012: en la modalidad "importe resultante" los
+    // importes se muestran YA corregidos (no la diferencia), pero la
+    // norma exige señalar igualmente el importe de la rectificación --
+    // de ahí la fila aparte, nunca recalculada aquí (ver
+    // Factura.importeRectificacion).
+    final etiquetaTotal = !esRectificativa
+        ? 'TOTAL'
+        : esImporteResultante
+        ? 'TOTAL (RECTIFICADO)'
+        : 'IMPORTE DE LA RECTIFICACIÓN';
     final filas = <pw.Widget>[
       _filaTotal('Subtotal', totales.subtotalBruto),
       if (factura.descuentoPorcentaje > 0)
@@ -473,9 +557,18 @@ class FacturaPdfService {
         padding: const pw.EdgeInsets.symmetric(vertical: 4),
         child: pw.Divider(color: _pdfBorder, height: 1),
       ),
-      _filaTotal('TOTAL', totales.total, destacado: true),
+      _filaTotal(etiquetaTotal, totales.total, destacado: true),
+      if (esRectificativa && esImporteResultante)
+        _filaTotal(
+          'Importe de la rectificación',
+          factura.importeRectificacion ?? 0,
+          colorValor: _pdfAccentStrong,
+        ),
     ];
-    if (factura.estado != EstadoFactura.borrador) {
+    // Cobrado/pendiente no tienen sentido en una rectificativa -- nunca
+    // registra cobros propios (ver FacturaRepository.registrarPago()),
+    // el cobro sigue viviendo en la factura original.
+    if (factura.estado != EstadoFactura.borrador && !esRectificativa) {
       filas.addAll([
         pw.SizedBox(height: 4),
         _filaTotal('Cobrado', factura.totalCobrado, colorValor: _pdfSuccess),

@@ -10,9 +10,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:oficio_ai/data/app_data.dart';
 import 'package:oficio_ai/data/local/local_store.dart';
+import 'package:oficio_ai/core/utils/formatters.dart';
 import 'package:oficio_ai/data/models/concepto_presupuesto.dart';
 import 'package:oficio_ai/data/models/datos_negocio.dart';
 import 'package:oficio_ai/data/models/factura.dart';
+import 'package:oficio_ai/data/models/factura_totals.dart';
 import 'package:oficio_ai/data/models/pago_factura.dart';
 import 'package:oficio_ai/data/models/presupuesto.dart';
 import 'package:oficio_ai/features/dashboard/dashboard_screen.dart';
@@ -237,4 +239,85 @@ void main() {
     expect(find.text('1'), findsWidgets);
     expect(find.text('Factura vencida'), findsOneWidget);
   });
+
+  testWidgets(
+    'una rectificativa "importe resultante" no duplica el importe '
+    'facturado del mes -- cuenta la diferencia, no el total completo '
+    '(iteración 8)',
+    (tester) async {
+      final appData = await _appDataVacia();
+      final hoy = DateTime.now();
+      const totalOriginal = 121.0; // 100 + 21% IVA
+      const totalCorregido = 84.7; // 70 + 21% IVA
+      final importeRectificacion = calcularImporteRectificacion(
+        totalOriginal: totalOriginal,
+        totalCorregido: totalCorregido,
+      );
+
+      await appData.facturas.seedIfEmpty([
+        Factura(
+          id: 'original',
+          clienteId: 'c1',
+          titulo: 'Factura original',
+          conceptos: const [
+            ConceptoPresupuesto(
+              id: 'c1',
+              descripcion: 'Servicio',
+              cantidad: 1,
+              precioUnitario: 100,
+            ),
+          ],
+          estado: EstadoFactura.emitida,
+          anio: hoy.year,
+          numeroSecuencial: 1,
+          creadaEl: hoy,
+          fechaEmision: hoy,
+        ),
+        Factura(
+          id: 'rectificativa',
+          clienteId: 'c1',
+          titulo: 'Rectificativa',
+          conceptos: const [
+            ConceptoPresupuesto(
+              id: 'c1',
+              descripcion: 'Servicio (importe corregido)',
+              cantidad: 1,
+              precioUnitario: 70,
+            ),
+          ],
+          estado: EstadoFactura.emitida,
+          anio: hoy.year,
+          numeroSecuencial: 1,
+          creadaEl: hoy,
+          fechaEmision: hoy,
+          tipoDocumento: TipoDocumentoFactura.rectificativa,
+          serie: serieRectificativas,
+          facturaOriginalId: 'original',
+          motivoRectificacion: 'Cantidad facturada por error',
+          modalidadRectificacion: ModalidadRectificacion.importeResultante,
+          importeRectificacion: importeRectificacion,
+        ),
+      ]);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(
+            appData: appData,
+            onVerTrabajos: () {},
+            onVerPresupuestos: () {},
+            onVerFacturas: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _scrollAResumenEconomico(tester);
+
+      // Si se duplicara, "Facturado este mes" mostraría 205,70 € (121 +
+      // 84,70) en vez de la diferencia neta real: 121 - 36,30 = 84,70 €.
+      final netoEsperado = totalOriginal + importeRectificacion;
+      expect(netoEsperado, 84.7);
+      expect(find.text(formatCurrency(netoEsperado)), findsOneWidget);
+      expect(find.text(formatCurrency(totalOriginal + totalCorregido)), findsNothing);
+    },
+  );
 }

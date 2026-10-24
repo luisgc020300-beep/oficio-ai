@@ -176,6 +176,12 @@ void main() {
 
       expect(appData.facturas.byId('f1')!.estado, EstadoFactura.emitida);
       expect(etiquetaFactura(appData.facturas.byId('f1')!), 'Pendiente de cobro');
+      // El botón real de la pantalla (no una llamada directa al
+      // repositorio) debe fijar también la instantánea del cliente
+      // (iteración 7.1/7.2) -- este es el único punto de la suite que
+      // comprueba ese wiring end-to-end en vez de solo en el servicio o
+      // el repositorio por separado.
+      expect(appData.facturas.byId('f1')!.datosCliente?.nombre, 'Ana Pérez');
 
       // Total = 45 * 1.21 = 54.45. Cobro parcial de 20.
       await _scrollHasta(tester, find.widgetWithText(OutlinedButton, 'Registrar cobro'));

@@ -63,14 +63,17 @@ dependencies:
   printing: ^5.14.3
 
   # Dependencia transitiva de pdf/printing, fijada aquí a propósito
-  # (revisión iteración 7.1 -- ver pubspec.lock y el informe): image
-  # 4.11.0 empezó a llamar ZLibDecoder.decodeLazy() sin subir su propio
-  # mínimo declarado de `archive` (se quedó en ^4.0.9, cuando ese método
-  # no existe hasta archive 4.3.0). pdf 3.12.0 limita `archive` a
-  # <4.1.0, así que la única combinación que no viola lo que NINGUNO de
-  # los dos paquetes declara admitir es una versión de `image` anterior
-  # a la 4.11.0 -- sin necesidad de forzar `archive` fuera del rango que
-  # pdf dice soportar (image corrigió este mismo fallo en su propia
+  # (revisión iteración 7.1, reverificada en 7.2 contra el código fuente
+  # real de archive -- ver pubspec.lock y el informe): image 4.11.0
+  # empezó a llamar ZLibDecoder.decodeLazy() sin subir su propio mínimo
+  # declarado de `archive` (se quedó en ^4.0.9, cuando ese método no
+  # existe hasta archive 4.4.0 -- comprobado en el código fuente de las
+  # versiones 4.0.9/4.3.0/4.4.0, no solo en el changelog). pdf 3.12.0
+  # limita `archive` a <4.1.0, así que la única combinación que no viola
+  # lo que NINGUNO de los dos paquetes declara admitir es una versión de
+  # `image` anterior a la 4.11.0 -- sin necesidad de forzar `archive`
+  # fuera del rango que pdf dice soportar (image corrigió este mismo
+  # fallo en su propia
   # pubspec en la versión 4.12.0, subiendo su mínimo a archive ^4.5.0).
   image: '>=4.1.0 <4.11.0'
 

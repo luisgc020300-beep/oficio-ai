@@ -20,6 +20,7 @@ import 'package:oficio_ai/data/models/cliente_snapshot.dart';
 import 'package:oficio_ai/data/models/concepto_presupuesto.dart';
 import 'package:oficio_ai/data/models/datos_negocio.dart';
 import 'package:oficio_ai/data/models/factura.dart';
+import 'package:oficio_ai/data/models/factura_totals.dart';
 import 'package:oficio_ai/data/models/pago_factura.dart';
 import 'package:oficio_ai/services/factura_pdf_service.dart';
 import 'package:pdf/pdf.dart';
@@ -500,6 +501,153 @@ void main() {
       expect(nombre, endsWith('.pdf'));
       expect(nombre, startsWith('Borrador_factura_'));
       expect(RegExp(r'^[A-Za-z0-9._-]+$').hasMatch(nombre), isTrue);
+    });
+  });
+
+  group('facturas rectificativas (iteración 8)', () {
+    test('generar() lanza si es una rectificativa y no se resuelve la '
+        'factura original -- nunca genera un documento incompleto en '
+        'silencio', () async {
+      final rectificativa = Factura(
+        id: 'r1',
+        clienteId: 'c1',
+        titulo: 'Rectificativa sin original resoluble',
+        conceptos: const [
+          ConceptoPresupuesto(
+            id: 'c1',
+            descripcion: 'Corrección',
+            cantidad: 1,
+            precioUnitario: -10,
+          ),
+        ],
+        estado: EstadoFactura.emitida,
+        anio: 2026,
+        numeroSecuencial: 1,
+        creadaEl: DateTime(2026, 2, 1),
+        fechaEmision: DateTime(2026, 2, 1),
+        datosEmisor: _emisor,
+        tipoDocumento: TipoDocumentoFactura.rectificativa,
+        serie: serieRectificativas,
+        facturaOriginalId: 'original-inexistente',
+        motivoRectificacion: 'Error en el importe',
+        modalidadRectificacion: ModalidadRectificacion.porDiferencias,
+      );
+      expect(
+        () => FacturaPdfService.generar(factura: rectificativa, cliente: _cliente),
+        throwsStateError,
+      );
+    });
+
+    test('genera un PDF válido para una rectificativa "por diferencias" '
+        'con importe negativo, identificando la factura original', () async {
+      final original = _facturaEmitida();
+      final rectificativa = Factura(
+        id: 'r1',
+        clienteId: original.clienteId,
+        titulo: 'Rectificativa de ${original.numero}',
+        conceptos: const [
+          ConceptoPresupuesto(
+            id: 'c1',
+            descripcion: 'Corrección de precio',
+            cantidad: 1,
+            precioUnitario: -20,
+          ),
+        ],
+        estado: EstadoFactura.emitida,
+        anio: 2026,
+        numeroSecuencial: 1,
+        creadaEl: DateTime(2026, 2, 1),
+        fechaEmision: DateTime(2026, 2, 1),
+        datosEmisor: _emisor,
+        tipoDocumento: TipoDocumentoFactura.rectificativa,
+        serie: serieRectificativas,
+        facturaOriginalId: original.id,
+        motivoRectificacion: 'Error en el precio del concepto principal',
+        modalidadRectificacion: ModalidadRectificacion.porDiferencias,
+      );
+      expect(rectificativa.totales.total, lessThan(0));
+      final bytes = await FacturaPdfService.generar(
+        factura: rectificativa,
+        cliente: _cliente,
+        facturaOriginal: original,
+      );
+      _esperarPdfValido(bytes);
+    });
+
+    test('genera un PDF válido para una rectificativa "importe '
+        'resultante", mostrando también el importe de la rectificación', () async {
+      final original = _facturaEmitida(); // 2 * 35 * 1.21 = 84.7
+      final rectificativa = Factura(
+        id: 'r1',
+        clienteId: original.clienteId,
+        titulo: 'Rectificativa de ${original.numero}',
+        conceptos: const [
+          ConceptoPresupuesto(
+            id: 'c1',
+            descripcion: 'Reparación de grifo (corregida)',
+            cantidad: 1,
+            precioUnitario: 50,
+          ),
+        ],
+        estado: EstadoFactura.emitida,
+        anio: 2026,
+        numeroSecuencial: 1,
+        creadaEl: DateTime(2026, 2, 1),
+        fechaEmision: DateTime(2026, 2, 1),
+        datosEmisor: _emisor,
+        tipoDocumento: TipoDocumentoFactura.rectificativa,
+        serie: serieRectificativas,
+        facturaOriginalId: original.id,
+        motivoRectificacion: 'Cantidad facturada incorrecta',
+        modalidadRectificacion: ModalidadRectificacion.importeResultante,
+        importeRectificacion: calcularImporteRectificacion(
+          totalOriginal: original.totales.total,
+          totalCorregido: 50 * 1.21,
+        ),
+      );
+      final bytes = await FacturaPdfService.generar(
+        factura: rectificativa,
+        cliente: _cliente,
+        facturaOriginal: original,
+      );
+      _esperarPdfValido(bytes);
+    });
+
+    test('una rectificativa con una descripción larga y muchos '
+        'conceptos (varias páginas) se genera sin errores', () async {
+      final original = _facturaEmitida();
+      final conceptos = List.generate(
+        80,
+        (i) => ConceptoPresupuesto(
+          id: 'c$i',
+          descripcion: 'Línea de corrección número $i, motivo: revisión de IVA',
+          cantidad: 1,
+          precioUnitario: -1.5,
+        ),
+      );
+      final rectificativa = Factura(
+        id: 'r1',
+        clienteId: original.clienteId,
+        titulo: 'Rectificativa de ${original.numero}',
+        conceptos: conceptos,
+        estado: EstadoFactura.emitida,
+        anio: 2026,
+        numeroSecuencial: 1,
+        creadaEl: DateTime(2026, 2, 1),
+        fechaEmision: DateTime(2026, 2, 1),
+        datosEmisor: _emisor,
+        tipoDocumento: TipoDocumentoFactura.rectificativa,
+        serie: serieRectificativas,
+        facturaOriginalId: original.id,
+        motivoRectificacion: 'Revisión completa de conceptos facturados por error',
+        modalidadRectificacion: ModalidadRectificacion.porDiferencias,
+      );
+      final bytes = await FacturaPdfService.generar(
+        factura: rectificativa,
+        cliente: _cliente,
+        facturaOriginal: original,
+      );
+      _esperarPdfValido(bytes);
     });
   });
 }

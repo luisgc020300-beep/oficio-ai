@@ -15,6 +15,7 @@ import '../quotes/quote_detail_screen.dart';
 import '../settings/business_settings_screen.dart';
 import 'invoice_form_screen.dart';
 import 'invoice_pdf_preview_screen.dart';
+import 'invoice_rectification_screen.dart';
 import 'payment_form_sheet.dart';
 
 /// Etiqueta visible combinando el estado guardado (borrador/emitida/
@@ -24,6 +25,11 @@ import 'payment_form_sheet.dart';
 String etiquetaFactura(Factura f, {DateTime? ahora}) {
   if (f.estado == EstadoFactura.borrador) return 'Borrador';
   if (f.estado == EstadoFactura.anulada) return 'Anulada';
+  // Una rectificativa nunca registra cobros propios (ver
+  // FacturaRepository.registrarPago()) -- mostrarla como "Pagada" sería
+  // engañoso, aunque Factura.pagadaCompleta sea técnicamente true (ver
+  // nota en ese getter).
+  if (f.tipoDocumento == TipoDocumentoFactura.rectificativa) return 'Rectificativa';
   if (f.pagadaCompleta) return 'Pagada';
   if (f.estaVencida(ahora: ahora)) return 'Vencida';
   if (f.pagadaParcial) return 'Pago parcial';
@@ -33,6 +39,7 @@ String etiquetaFactura(Factura f, {DateTime? ahora}) {
 Color colorEstadoFactura(Factura f, {DateTime? ahora}) {
   if (f.estado == EstadoFactura.borrador) return AppColors.inkFaint;
   if (f.estado == EstadoFactura.anulada) return AppColors.error;
+  if (f.tipoDocumento == TipoDocumentoFactura.rectificativa) return AppColors.accentStrong;
   if (f.pagadaCompleta) return AppColors.success;
   if (f.estaVencida(ahora: ahora)) return AppColors.error;
   if (f.pagadaParcial) return AppColors.warning;
@@ -244,6 +251,11 @@ class InvoiceDetailScreen extends StatelessWidget {
         final totales = factura.totales;
         final esBorrador = factura.estado == EstadoFactura.borrador;
         final esEmitida = factura.estado == EstadoFactura.emitida;
+        final esRectificativa = factura.tipoDocumento == TipoDocumentoFactura.rectificativa;
+        final facturaOriginal = factura.facturaOriginalId != null
+            ? appData.facturas.byId(factura.facturaOriginalId!)
+            : null;
+        final rectificativas = appData.facturas.rectificativasDe(factura.id);
 
         return Scaffold(
           appBar: AppBar(
@@ -398,8 +410,26 @@ class InvoiceDetailScreen extends StatelessWidget {
                         totales.iva,
                       ),
                       const Divider(height: AppSpace.lg),
-                      _FilaTotalDetalle('Total', totales.total, destacado: true),
-                      if (esEmitida) ...[
+                      _FilaTotalDetalle(
+                        esRectificativa
+                            ? (factura.modalidadRectificacion ==
+                                      ModalidadRectificacion.importeResultante
+                                  ? 'Total (rectificado)'
+                                  : 'Importe de la rectificación')
+                            : 'Total',
+                        totales.total,
+                        destacado: true,
+                      ),
+                      if (esRectificativa &&
+                          factura.modalidadRectificacion ==
+                              ModalidadRectificacion.importeResultante) ...[
+                        const SizedBox(height: AppSpace.xs),
+                        _FilaTotalDetalle(
+                          'Importe de la rectificación',
+                          factura.importeRectificacion ?? 0,
+                        ),
+                      ],
+                      if (esEmitida && !esRectificativa) ...[
                         const SizedBox(height: AppSpace.xs),
                         _FilaTotalDetalle('Cobrado', factura.totalCobrado),
                         _FilaTotalDetalle(
@@ -423,7 +453,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                   ),
                 ),
               ],
-              if (esEmitida) ...[
+              if (esEmitida && !esRectificativa) ...[
                 const SizedBox(height: AppSpace.lg),
                 Text(
                   'Historial de cobros',
@@ -475,7 +505,26 @@ class InvoiceDetailScreen extends StatelessWidget {
                     ),
                   ),
                 ],
+              ],
+              if (esEmitida) ...[
                 const SizedBox(height: AppSpace.lg),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => InvoiceRectificationScreen(
+                          appData: appData,
+                          facturaOriginal: factura,
+                        ),
+                      ),
+                    ),
+                    icon: const Icon(Icons.flip_camera_android_outlined, size: 18),
+                    label: const Text('Rectificar factura'),
+                  ),
+                ),
+                const SizedBox(height: AppSpace.sm),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
@@ -486,6 +535,74 @@ class InvoiceDetailScreen extends StatelessWidget {
                       foregroundColor: AppColors.error,
                       side: const BorderSide(color: AppColors.error),
                     ),
+                  ),
+                ),
+              ],
+              if (esRectificativa && facturaOriginal != null) ...[
+                const SizedBox(height: AppSpace.lg),
+                Text(
+                  'Rectifica a',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: AppSpace.sm),
+                Card(
+                  child: ListTile(
+                    leading: const Icon(
+                      Icons.receipt_long_outlined,
+                      color: AppColors.accentStrong,
+                    ),
+                    title: Text(facturaOriginal.numero ?? facturaOriginal.titulo),
+                    subtitle: Text(factura.motivoRectificacion ?? ''),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => InvoiceDetailScreen(
+                          appData: appData,
+                          facturaId: facturaOriginal.id,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              if (rectificativas.isNotEmpty) ...[
+                const SizedBox(height: AppSpace.lg),
+                Text(
+                  'Rectificada por',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: AppSpace.sm),
+                Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < rectificativas.length; i++) ...[
+                        if (i > 0) const Divider(height: 1, indent: 16),
+                        ListTile(
+                          leading: const Icon(
+                            Icons.receipt_long_outlined,
+                            color: AppColors.accentStrong,
+                          ),
+                          title: Text(rectificativas[i].numero ?? rectificativas[i].titulo),
+                          subtitle: Text(
+                            rectificativas[i].fechaEmision != null
+                                ? formatDate(rectificativas[i].fechaEmision!)
+                                : 'Sin emitir',
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => InvoiceDetailScreen(
+                                appData: appData,
+                                facturaId: rectificativas[i].id,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                 ),
               ],
@@ -592,7 +709,11 @@ class _FilaTotalDetalle extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: style),
+          // Expanded -- algunas etiquetas de rectificativa ("Importe de
+          // la rectificación") son más largas que las de siempre
+          // ("Total", "IVA (21%)") y, en estilo destacado, desbordaban
+          // el Row sin esto.
+          Expanded(child: Text(label, style: style)),
           Text(formatCurrency(valor), style: style),
         ],
       ),

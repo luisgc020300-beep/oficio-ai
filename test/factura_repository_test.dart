@@ -8,6 +8,7 @@
 // puntos 4, 6, 7, 9, 10, 11 y 18).
 import 'package:flutter_test/flutter_test.dart';
 import 'package:oficio_ai/data/local/local_store.dart';
+import 'package:oficio_ai/data/models/cliente_snapshot.dart';
 import 'package:oficio_ai/data/models/concepto_presupuesto.dart';
 import 'package:oficio_ai/data/models/datos_negocio.dart';
 import 'package:oficio_ai/data/models/factura.dart';
@@ -33,6 +34,11 @@ Factura _borrador({
   String? trabajoId,
   String? presupuestoId,
   double precio = 100,
+  TipoDocumentoFactura tipoDocumento = TipoDocumentoFactura.ordinaria,
+  String serie = '',
+  String? facturaOriginalId,
+  String? motivoRectificacion,
+  ModalidadRectificacion? modalidadRectificacion,
 }) => Factura(
   id: id,
   clienteId: clienteId,
@@ -48,6 +54,11 @@ Factura _borrador({
     ),
   ],
   creadaEl: DateTime(2026, 1, 1),
+  tipoDocumento: tipoDocumento,
+  serie: serie,
+  facturaOriginalId: facturaOriginalId,
+  motivoRectificacion: motivoRectificacion,
+  modalidadRectificacion: modalidadRectificacion,
 );
 
 void main() {
@@ -328,6 +339,34 @@ void main() {
       expect(f.pagos, hasLength(1));
       expect(f.pagos.first.importe, 30);
     });
+
+    test('la instantánea del cliente fijada al emitir sobrevive a un '
+        'repositorio nuevo sobre el mismo almacenamiento (iteración '
+        '7.1/7.2 -- mismo criterio que datosEmisor)', () async {
+      const snapshot = ClienteSnapshot(
+        nombre: 'Ana Rodríguez Jiménez',
+        direccion: 'Avenida de España 22, Getafe',
+        telefono: '611 222 333',
+        email: 'ana@email.com',
+      );
+      final repo1 = FacturaRepository(store);
+      await repo1.load();
+      await repo1.add(_borrador());
+      await repo1.emitir(
+        'f1',
+        datosEmisor: _datosCompletos,
+        datosCliente: snapshot,
+      );
+
+      final repo2 = FacturaRepository(store);
+      await repo2.load();
+
+      final f = repo2.byId('f1')!;
+      expect(f.datosCliente?.nombre, 'Ana Rodríguez Jiménez');
+      expect(f.datosCliente?.direccion, 'Avenida de España 22, Getafe');
+      expect(f.datosCliente?.telefono, '611 222 333');
+      expect(f.datosCliente?.email, 'ana@email.com');
+    });
   });
 
   group('seedIfEmpty()', () {
@@ -340,6 +379,231 @@ void main() {
 
       expect(repo.facturas, hasLength(1));
       expect(repo.facturas.first.id, 'real');
+    });
+  });
+
+  group('rectificativas (iteración 8)', () {
+    Factura rectificativa({
+      String id = 'r1',
+      required String facturaOriginalId,
+      double precio = -30,
+      String? motivoRectificacion = 'Error en el importe facturado',
+      ModalidadRectificacion modalidad = ModalidadRectificacion.porDiferencias,
+    }) => _borrador(
+      id: id,
+      precio: precio,
+      tipoDocumento: TipoDocumentoFactura.rectificativa,
+      serie: serieRectificativas,
+      facturaOriginalId: facturaOriginalId,
+      motivoRectificacion: motivoRectificacion,
+      modalidadRectificacion: modalidad,
+    );
+
+    test('crea y emite una rectificativa válida contra una factura ya '
+        'emitida, con su propia numeración en la serie "R"', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(_borrador(id: 'f1'));
+      final original = await repo.emitir('f1', datosEmisor: _datosCompletos);
+
+      await repo.add(rectificativa(facturaOriginalId: original.id));
+      final emitida = await repo.emitir('r1', datosEmisor: _datosCompletos);
+
+      expect(emitida.tipoDocumento, TipoDocumentoFactura.rectificativa);
+      expect(emitida.serie, serieRectificativas);
+      expect(emitida.facturaOriginalId, original.id);
+      expect(emitida.numero, startsWith('$serieRectificativas-'));
+      expect(emitida.numeroSecuencial, 1); // primera de su propia serie
+    });
+
+    test('rechaza crear una rectificativa que referencia una factura '
+        'inexistente', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      expect(
+        () => repo.add(rectificativa(facturaOriginalId: 'no-existe')),
+        throwsStateError,
+      );
+    });
+
+    test('rechaza crear una rectificativa contra un borrador -- solo se '
+        'puede rectificar lo ya emitido', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(_borrador(id: 'f1')); // sigue siendo borrador
+      expect(
+        () => repo.add(rectificativa(facturaOriginalId: 'f1')),
+        throwsStateError,
+      );
+    });
+
+    test('rechaza emitir una rectificativa sin motivo', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(_borrador(id: 'f1'));
+      final original = await repo.emitir('f1', datosEmisor: _datosCompletos);
+      await repo.add(
+        rectificativa(facturaOriginalId: original.id, motivoRectificacion: null),
+      );
+      expect(
+        () => repo.emitir('r1', datosEmisor: _datosCompletos),
+        throwsStateError,
+      );
+    });
+
+    test('la numeración de la serie "R" es correlativa y propia -- no '
+        'comparte secuencia con las facturas ordinarias ni deja huecos '
+        'entre rectificativas', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(_borrador(id: 'f1'));
+      await repo.add(_borrador(id: 'f2'));
+      final o1 = await repo.emitir('f1', datosEmisor: _datosCompletos);
+      final o2 = await repo.emitir('f2', datosEmisor: _datosCompletos);
+      // Dos facturas ordinarias ya consumieron los números 1 y 2 de la
+      // serie '' -- una rectificativa debe empezar en 1 de todos modos.
+      expect(o2.numeroSecuencial, 2);
+
+      await repo.add(rectificativa(id: 'r1', facturaOriginalId: o1.id));
+      final r1 = await repo.emitir('r1', datosEmisor: _datosCompletos);
+      expect(r1.numeroSecuencial, 1);
+
+      await repo.add(rectificativa(id: 'r2', facturaOriginalId: o2.id));
+      final r2 = await repo.emitir('r2', datosEmisor: _datosCompletos);
+      expect(r2.numeroSecuencial, 2);
+    });
+
+    test('una rectificativa nunca registra cobros propios', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(_borrador(id: 'f1'));
+      final original = await repo.emitir('f1', datosEmisor: _datosCompletos);
+      await repo.add(rectificativa(facturaOriginalId: original.id));
+      await repo.emitir('r1', datosEmisor: _datosCompletos);
+
+      expect(
+        () => repo.registrarPago('r1', fecha: DateTime(2026, 2), importe: 10),
+        throwsStateError,
+      );
+    });
+
+    test('modalidad "importe resultante": importeRectificacion se '
+        'calcula al crearla como la diferencia con el total original, y '
+        'nunca cambia después', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(
+        _borrador(id: 'f1', precio: 100),
+      ); // total = 100 * 1.21 = 121
+      final original = await repo.emitir('f1', datosEmisor: _datosCompletos);
+
+      await repo.add(
+        rectificativa(
+          facturaOriginalId: original.id,
+          precio: 70, // el importe ya corregido, no la diferencia
+          modalidad: ModalidadRectificacion.importeResultante,
+        ),
+      );
+      final guardada = repo.byId('r1')!;
+      // total corregido = 70 * 1.21 = 84.7; diferencia = 84.7 - 121 = -36.3
+      expect(guardada.importeRectificacion, closeTo(-36.3, 0.001));
+    });
+
+    test('modalidad "por diferencias": importeRectificacion se queda '
+        'null -- el propio total YA es la diferencia', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(_borrador(id: 'f1'));
+      final original = await repo.emitir('f1', datosEmisor: _datosCompletos);
+      await repo.add(rectificativa(facturaOriginalId: original.id));
+      expect(repo.byId('r1')!.importeRectificacion, isNull);
+    });
+
+    test('rectificativasDe() encuentra las rectificativas de una '
+        'factura, y ninguna de otra', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(_borrador(id: 'f1'));
+      await repo.add(_borrador(id: 'f2'));
+      final o1 = await repo.emitir('f1', datosEmisor: _datosCompletos);
+      final o2 = await repo.emitir('f2', datosEmisor: _datosCompletos);
+      await repo.add(rectificativa(id: 'r1', facturaOriginalId: o1.id));
+      await repo.emitir('r1', datosEmisor: _datosCompletos);
+
+      expect(repo.rectificativasDe(o1.id).map((f) => f.id), ['r1']);
+      expect(repo.rectificativasDe(o2.id), isEmpty);
+    });
+
+    test('la relación, la serie y el motivo sobreviven a un repositorio '
+        'nuevo sobre el mismo almacenamiento', () async {
+      final repo1 = FacturaRepository(store);
+      await repo1.load();
+      await repo1.add(_borrador(id: 'f1'));
+      final original = await repo1.emitir('f1', datosEmisor: _datosCompletos);
+      await repo1.add(rectificativa(facturaOriginalId: original.id));
+      await repo1.emitir('r1', datosEmisor: _datosCompletos);
+
+      final repo2 = FacturaRepository(store);
+      await repo2.load();
+      final r = repo2.byId('r1')!;
+      expect(r.tipoDocumento, TipoDocumentoFactura.rectificativa);
+      expect(r.serie, serieRectificativas);
+      expect(r.facturaOriginalId, original.id);
+      expect(r.motivoRectificacion, 'Error en el importe facturado');
+      expect(repo2.rectificativasDe(original.id).map((f) => f.id), ['r1']);
+    });
+
+    test('anular la factura original no rompe la relación ni modifica '
+        'la rectificativa ya emitida', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(_borrador(id: 'f1'));
+      final original = await repo.emitir('f1', datosEmisor: _datosCompletos);
+      await repo.add(rectificativa(facturaOriginalId: original.id));
+      final emitida = await repo.emitir('r1', datosEmisor: _datosCompletos);
+
+      await repo.anular(original.id, 'Cliente dado de baja');
+
+      final rectificativaReleida = repo.byId('r1')!;
+      expect(rectificativaReleida.facturaOriginalId, original.id);
+      expect(rectificativaReleida.numero, emitida.numero);
+      expect(rectificativaReleida.estado, EstadoFactura.emitida); // no se anula en cascada
+      expect(repo.byId(original.id)!.estado, EstadoFactura.anulada);
+    });
+
+    test('crear y emitir una rectificativa no modifica los importes ni '
+        'los cobros ya registrados en la factura original', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(_borrador(id: 'f1', precio: 100));
+      final original = await repo.emitir('f1', datosEmisor: _datosCompletos);
+      await repo.registrarPago('f1', fecha: DateTime(2026, 2), importe: 50);
+      final antes = repo.byId('f1')!;
+
+      await repo.add(rectificativa(facturaOriginalId: original.id));
+      await repo.emitir('r1', datosEmisor: _datosCompletos);
+
+      final despues = repo.byId('f1')!;
+      expect(despues.numero, antes.numero);
+      expect(despues.totales.total, antes.totales.total);
+      expect(despues.pagos, antes.pagos);
+      expect(despues.totalCobrado, 50);
+      expect(despues.saldoPendiente, antes.saldoPendiente);
+    });
+
+    test('una rectificativa ya emitida no se puede editar con update(), '
+        'igual que una factura ordinaria', () async {
+      final repo = FacturaRepository(store);
+      await repo.load();
+      await repo.add(_borrador(id: 'f1'));
+      final original = await repo.emitir('f1', datosEmisor: _datosCompletos);
+      await repo.add(rectificativa(facturaOriginalId: original.id));
+      final emitida = await repo.emitir('r1', datosEmisor: _datosCompletos);
+
+      expect(
+        () => repo.update(emitida.copyWith(titulo: 'Intento de editar')),
+        throwsStateError,
+      );
     });
   });
 }
