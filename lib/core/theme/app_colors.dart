@@ -47,6 +47,14 @@ class AppColors {
   static Color get warningTint => esOscuro ? _Dark.warningTint : _Light.warningTint;
   static Color get error => esOscuro ? _Dark.error : _Light.error;
   static Color get errorTint => esOscuro ? _Dark.errorTint : _Light.errorTint;
+
+  /// Variante de `error` para un botón relleno con texto blanco encima
+  /// (p. ej. "Cerrar sesión") -- `error` en modo oscuro se aclaró para
+  /// leerse bien COMO TEXTO sobre negro, lo que lo deja sin contraste
+  /// suficiente como fondo de botón con texto blanco (ver nota en
+  /// _Dark). En claro coincide con `error`, que ya sirve para ambos
+  /// papeles.
+  static Color get errorStrong => esOscuro ? _Dark.errorStrong : _Light.error;
 }
 
 class _Light {
@@ -77,24 +85,34 @@ class _Light {
   static const errorTint = Color(0x1AC9473F);
 }
 
-/// Mismos matices de marca que _Light, reequilibrados para contraste
-/// sobre fondo oscuro (primary/accent algo más claros para seguir
-/// funcionando como texto/iconos, no solo como relleno).
+/// Negro real, no azul marino -- mismo criterio que ya se aplicó en
+/// Repara tras el mismo feedback ("quiero que el modo oscuro sea
+/// oscuro, negro... sin tanto azul oscuro"): fondo/superficies/bordes/
+/// texto quedan neutros (sin matiz de color), y el azul de marca se
+/// reserva SOLO para primary/accent como acento, igual que en claro.
+///
+/// `primary`/`accent`/`success`/`warning`/`error` están aclarados para
+/// funcionar como TEXTO/ICONO sobre este negro -- eso los deja
+/// insuficientes de contraste si se usan como FONDO relleno con texto
+/// blanco encima (botones, chip seleccionado, burbuja de chat, día
+/// seleccionado del calendario). Para ese papel existen `primaryStrong`
+/// y `errorStrong`, deliberadamente más oscuros y saturados -- se usan
+/// solo en esos sitios puntuales, nunca como texto.
 class _Dark {
   _Dark._();
 
-  static const background = Color(0xFF0C1220);
-  static const surface = Color(0xFF151F32);
-  static const surfaceMuted = Color(0xFF1C2A42);
-  static const border = Color(0xFF2B3A54);
+  static const background = Color(0xFF0A0A0C);
+  static const surface = Color(0xFF161617);
+  static const surfaceMuted = Color(0xFF1E1E20);
+  static const border = Color(0x14FFFFFF);
 
-  static const ink = Color(0xFFEDF1F7);
-  static const inkMuted = Color(0xFFAAB5C8);
-  static const inkFaint = Color(0xFF717F99);
+  static const ink = Color(0xFFF2F2F4);
+  static const inkMuted = Color(0xFF9C9CA3);
+  static const inkFaint = Color(0xFF6C6C73);
 
-  static const primary = Color(0xFF6B97C7);
+  static const primary = Color(0xFF86AFDD);
   static const primaryStrong = Color(0xFF3E6188);
-  static const primaryTint = Color(0x296B97C7);
+  static const primaryTint = Color(0x2986AFDD);
 
   static const accent = Color(0xFFF0A740);
   static const accentStrong = Color(0xFFD9862A);
@@ -106,6 +124,7 @@ class _Dark {
   static const warningTint = Color(0x29E8BC66);
   static const error = Color(0xFFE2766B);
   static const errorTint = Color(0x29E2766B);
+  static const errorStrong = Color(0xFFB23B32);
 }
 
 /// Radios y espaciado consistentes -- nunca un valor suelto.

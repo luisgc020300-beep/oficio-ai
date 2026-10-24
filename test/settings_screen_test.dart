@@ -8,6 +8,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
+import 'package:oficio_ai/core/theme/app_colors.dart';
 import 'package:oficio_ai/core/theme/theme_controller.dart';
 import 'package:oficio_ai/data/app_data.dart';
 import 'package:oficio_ai/data/local/local_store.dart';
@@ -46,6 +47,12 @@ void main() {
     await initializeDateFormatting('es_ES', null);
   });
 
+  // AppColors guarda el modo en una variable estática en memoria (ver
+  // AppColors.actualizar()) -- sin resetearla, un test que active el
+  // modo oscuro dejaría la app en oscuro para el siguiente test de este
+  // mismo archivo.
+  setUp(() => AppColors.actualizar(AppAppearance.claro));
+
   testWidgets(
     'el icono de ajustes del dashboard abre Ajustes con modo oscuro, Mi negocio y cerrar sesión',
     (tester) async {
@@ -76,6 +83,19 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(themeController.oscuro, isTrue);
+    expect(AppColors.esOscuro, isTrue);
+    expect(AppColors.background, const Color(0xFF0A0A0C));
+
+    // El texto de las filas Cupertino (CupertinoListTile) resuelve su
+    // color por el *brillo* ambiental, no por nuestro AppColors -- sin
+    // envolverlas en un CupertinoTheme con el brillo correcto, se quedan
+    // leyendo el brillo del sistema operativo (que en este test sigue en
+    // claro) y el texto se vuelve ilegible sobre el fondo ya oscuro. Esto
+    // comprueba que sí se propaga el brillo oscuro.
+    final cupertinoTheme = CupertinoTheme.of(
+      tester.element(find.byType(CupertinoListSection).first),
+    );
+    expect(cupertinoTheme.brightness, Brightness.dark);
 
     // Vuelve a Inicio: el Scaffold debe pintarse ya con el fondo oscuro
     // (no solo el estado del controlador) -- confirma que todo el árbol

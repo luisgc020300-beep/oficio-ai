@@ -224,7 +224,11 @@ class _BurbujaMensaje extends StatelessWidget {
           maxWidth: MediaQuery.of(context).size.width * 0.78,
         ),
         decoration: BoxDecoration(
-          color: deAsistente ? AppColors.surface : AppColors.primary,
+          // En oscuro, `primary` está aclarado para texto/icono -- como
+          // fondo con texto blanco encima se usa `primaryStrong`.
+          color: deAsistente
+              ? AppColors.surface
+              : (AppColors.esOscuro ? AppColors.primaryStrong : AppColors.primary),
           border: deAsistente
               ? Border.all(color: AppColors.border)
               : null,

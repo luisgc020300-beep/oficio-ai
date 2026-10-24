@@ -112,7 +112,10 @@ ThemeData buildAppTheme() {
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
-        backgroundColor: AppColors.primary,
+        // En oscuro, `primary` está aclarado para leerse como texto/icono
+        // sobre negro -- como fondo con texto blanco se usa `primaryStrong`
+        // en su lugar (ver nota en AppColors/_Dark).
+        backgroundColor: AppColors.esOscuro ? AppColors.primaryStrong : AppColors.primary,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(
@@ -144,7 +147,7 @@ ThemeData buildAppTheme() {
     ),
     chipTheme: ChipThemeData(
       backgroundColor: AppColors.surfaceMuted,
-      selectedColor: AppColors.primary,
+      selectedColor: AppColors.esOscuro ? AppColors.primaryStrong : AppColors.primary,
       side: BorderSide(color: AppColors.border),
       shape: const StadiumBorder(),
       labelStyle: TextStyle(

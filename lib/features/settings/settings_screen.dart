@@ -48,7 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             child: const Text('Cancelar'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.error),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.errorStrong),
             onPressed: () => Navigator.pop(ctx, true),
             child: const Text('Cerrar sesión'),
           ),
@@ -101,99 +101,116 @@ class _SettingsScreenState extends State<SettingsScreen> {
       body: ListenableBuilder(
         listenable: widget.themeController,
         builder: (context, _) {
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(
-              AppSpace.md,
-              AppSpace.md,
-              AppSpace.md,
-              AppSpace.xl,
+          // Los widgets Cupertino (CupertinoListTile, su chevron, el
+          // interruptor, el spinner) resuelven sus colores por defecto
+          // según el brillo del SISTEMA OPERATIVO, no según nuestro
+          // interruptor de la app -- sin este CupertinoTheme explícito, si
+          // el móvil está en claro y activas "Modo oscuro" aquí dentro, el
+          // texto de las filas se queda oscuro sobre un fondo ya oscuro.
+          // El título de cada fila además lleva su color explícito
+          // (AppColors.ink) para que coincida exactamente con el resto de
+          // la tipografía de la app, en vez de depender del gris de
+          // sistema de Cupertino.
+          return CupertinoTheme(
+            data: CupertinoThemeData(
+              brightness: AppColors.esOscuro ? Brightness.dark : Brightness.light,
+              primaryColor: AppColors.primary,
+              scaffoldBackgroundColor: AppColors.background,
             ),
-            children: [
-              _cabecera('APARIENCIA'),
-              CupertinoListSection.insetGrouped(
-                margin: EdgeInsets.zero,
-                backgroundColor: AppColors.background,
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                children: [
-                  CupertinoListTile(
-                    leading: Icon(
-                      CupertinoIcons.moon_stars_fill,
-                      color: AppColors.primary,
-                    ),
-                    title: const Text('Modo oscuro'),
-                    trailing: CupertinoSwitch(
-                      value: widget.themeController.oscuro,
-                      activeTrackColor: AppColors.primary,
-                      onChanged: (valor) => widget.themeController.cambiar(valor),
-                    ),
-                  ),
-                ],
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                AppSpace.md,
+                AppSpace.md,
+                AppSpace.md,
+                AppSpace.xl,
               ),
-              const SizedBox(height: AppSpace.lg),
-              _cabecera('NEGOCIO'),
-              CupertinoListSection.insetGrouped(
-                margin: EdgeInsets.zero,
-                backgroundColor: AppColors.background,
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
-                ),
-                children: [
-                  CupertinoListTile(
-                    leading: Icon(
-                      CupertinoIcons.briefcase_fill,
-                      color: AppColors.primary,
-                    ),
-                    title: const Text('Mi negocio'),
-                    trailing: const CupertinoListTileChevron(),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => BusinessSettingsScreen(appData: widget.appData),
+              children: [
+                _cabecera('APARIENCIA'),
+                CupertinoListSection.insetGrouped(
+                  margin: EdgeInsets.zero,
+                  backgroundColor: AppColors.background,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  children: [
+                    CupertinoListTile(
+                      leading: Icon(
+                        CupertinoIcons.moon_stars_fill,
+                        color: AppColors.primary,
+                      ),
+                      title: Text('Modo oscuro', style: TextStyle(color: AppColors.ink)),
+                      trailing: CupertinoSwitch(
+                        value: widget.themeController.oscuro,
+                        activeTrackColor: AppColors.primary,
+                        onChanged: (valor) => widget.themeController.cambiar(valor),
                       ),
                     ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: AppSpace.lg),
-              _cabecera('CUENTA'),
-              CupertinoListSection.insetGrouped(
-                margin: EdgeInsets.zero,
-                backgroundColor: AppColors.background,
-                decoration: BoxDecoration(
-                  color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(AppRadius.md),
+                  ],
                 ),
-                footer: Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: Text(
-                    'No hay ninguna cuenta ni servidor: todo vive en este '
-                    'dispositivo. "Cerrar sesión" borra esos datos y deja '
-                    'la app como recién instalada.',
-                    style: TextStyle(fontSize: 12, height: 1.35, color: AppColors.inkFaint),
+                const SizedBox(height: AppSpace.lg),
+                _cabecera('NEGOCIO'),
+                CupertinoListSection.insetGrouped(
+                  margin: EdgeInsets.zero,
+                  backgroundColor: AppColors.background,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
-                ),
-                children: [
-                  CupertinoListTile(
-                    leading: _cerrandoSesion
-                        ? const SizedBox(
-                            width: 20,
-                            height: 20,
-                            child: CupertinoActivityIndicator(),
-                          )
-                        : Icon(CupertinoIcons.square_arrow_right, color: AppColors.error),
-                    title: Text(
-                      'Cerrar sesión',
-                      style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600),
+                  children: [
+                    CupertinoListTile(
+                      leading: Icon(
+                        CupertinoIcons.briefcase_fill,
+                        color: AppColors.primary,
+                      ),
+                      title: Text('Mi negocio', style: TextStyle(color: AppColors.ink)),
+                      trailing: Icon(CupertinoIcons.chevron_forward, color: AppColors.inkFaint),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => BusinessSettingsScreen(appData: widget.appData),
+                        ),
+                      ),
                     ),
-                    onTap: _cerrandoSesion ? null : _confirmarCerrarSesion,
+                  ],
+                ),
+                const SizedBox(height: AppSpace.lg),
+                _cabecera('CUENTA'),
+                CupertinoListSection.insetGrouped(
+                  margin: EdgeInsets.zero,
+                  backgroundColor: AppColors.background,
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(AppRadius.md),
                   ),
-                ],
-              ),
-            ],
+                  footer: Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'No hay ninguna cuenta ni servidor: todo vive en este '
+                      'dispositivo. "Cerrar sesión" borra esos datos y deja '
+                      'la app como recién instalada.',
+                      style: TextStyle(fontSize: 12, height: 1.35, color: AppColors.inkFaint),
+                    ),
+                  ),
+                  children: [
+                    CupertinoListTile(
+                      leading: _cerrandoSesion
+                          ? SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CupertinoActivityIndicator(color: AppColors.error),
+                            )
+                          : Icon(CupertinoIcons.square_arrow_right, color: AppColors.error),
+                      title: Text(
+                        'Cerrar sesión',
+                        style: TextStyle(color: AppColors.error, fontWeight: FontWeight.w600),
+                      ),
+                      onTap: _cerrandoSesion ? null : _confirmarCerrarSesion,
+                    ),
+                  ],
+                ),
+              ],
+            ),
           );
         },
       ),

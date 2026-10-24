@@ -389,7 +389,11 @@ class _DiaChip extends StatelessWidget {
         width: 46,
         padding: const EdgeInsets.symmetric(vertical: 6),
         decoration: BoxDecoration(
-          color: seleccionado ? AppColors.primary : AppColors.surfaceMuted,
+          // En oscuro, `primary` está aclarado para texto/icono -- como
+          // fondo con texto blanco encima se usa `primaryStrong`.
+          color: seleccionado
+              ? (AppColors.esOscuro ? AppColors.primaryStrong : AppColors.primary)
+              : AppColors.surfaceMuted,
           borderRadius: BorderRadius.circular(AppRadius.sm),
           border: hoy && !seleccionado
               ? Border.all(color: AppColors.primary, width: 1.5)
