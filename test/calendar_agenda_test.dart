@@ -211,6 +211,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('Este trabajo ya no existe.'), findsNothing);
+      // La sección de gastos (iteración 9) añadió contenido antes de
+      // "Citas programadas" -- ya no está garantizado que quede dentro
+      // del viewport inicial de la ficha del trabajo.
+      await tester.scrollUntilVisible(
+        find.text('Citas programadas'),
+        300,
+        scrollable: find.byType(Scrollable).first,
+      );
       expect(find.text('Citas programadas'), findsOneWidget); // ficha del trabajo
     });
 

@@ -77,6 +77,25 @@ class _InvoiceRectificationScreenState extends State<InvoiceRectificationScreen>
   final _motivoCtrl = TextEditingController();
   ModalidadRectificacion _modalidad = ModalidadRectificacion.porDiferencias;
   late List<_FilaRectificacion> _filas = _filasIniciales(_modalidad);
+
+  /// La rectificativa "importe resultante" vigente sobre
+  /// [InvoiceRectificationScreen.facturaOriginal], si ya existe
+  /// (iteración 8.2) -- mientras exista, una nueva corrección en esa
+  /// misma modalidad contra este documento sería ambigua: hay que
+  /// corregir ESA rectificativa, no el documento que ella ya sustituyó.
+  /// El repositorio rechaza esto también (ver FacturaRepository.add());
+  /// aquí solo se evita que el profesional llegue a rellenar todo el
+  /// formulario para encontrarse el error al final.
+  Factura? get _resultanteVigente =>
+      widget.appData.facturas.rectificativaResultanteVigenteDe(widget.facturaOriginal.id);
+
+  bool get _resultanteBloqueada => _resultanteVigente != null;
+
+  /// Todas las rectificativas ya existentes sobre este documento,
+  /// vigentes o anuladas -- para que el profesional vea el historial
+  /// completo antes de decidir contra qué corregir (iteración 8.2).
+  List<Factura> get _rectificativasRelacionadas =>
+      widget.appData.facturas.rectificativasDe(widget.facturaOriginal.id);
   /// Deshabilita el botón desde el primer toque -- sin esto, el diálogo
   /// de confirmación podría abrirse dos veces con un doble toque rápido
   /// (ver _emitir()).
@@ -155,9 +174,19 @@ class _InvoiceRectificationScreenState extends State<InvoiceRectificationScreen>
   /// Construye la rectificativa EN BORRADOR, sin guardarla -- la usan
   /// tanto la vista previa (que nunca persiste nada) como _emitir() (que
   /// la guarda con FacturaRepository.add() antes de emitirla).
+  ///
+  /// [trabajoId]/[presupuestoId] se heredan del documento que se
+  /// corrige (iteración 9) -- sin esto, la rectificativa de una factura
+  /// de un trabajo quedaría sin trabajo asociado, y
+  /// FacturaRepository.porTrabajo() (que usa la rentabilidad del
+  /// trabajo, ver job_detail_screen.dart) no la encontraría nunca: su
+  /// ajuste al importe facturado desaparecería en silencio de ese
+  /// cálculo en vez de restarse como corresponde.
   Factura _borrador() => Factura(
     id: const Uuid().v4(),
     clienteId: widget.facturaOriginal.clienteId,
+    trabajoId: widget.facturaOriginal.trabajoId,
+    presupuestoId: widget.facturaOriginal.presupuestoId,
     titulo: 'Rectificativa de ${widget.facturaOriginal.numero ?? widget.facturaOriginal.titulo}',
     conceptos: _filas.map((f) => f.toModel()).toList(),
     ivaPorcentaje: widget.facturaOriginal.ivaPorcentaje,
@@ -294,11 +323,93 @@ class _InvoiceRectificationScreenState extends State<InvoiceRectificationScreen>
               leading: const Icon(Icons.receipt_long_outlined, color: AppColors.primary),
               title: Text('Rectifica a ${original.numero ?? original.titulo}'),
               subtitle: Text(
-                'Total original: ${formatCurrency(original.totales.total)}'
+                'La corrección se calculará contra este documento -- total: '
+                '${formatCurrency(original.totales.total)}'
                 '${original.fechaEmision != null ? ' · ${formatDate(original.fechaEmision!)}' : ''}',
               ),
             ),
           ),
+          if (_rectificativasRelacionadas.isNotEmpty) ...[
+            const SizedBox(height: AppSpace.md),
+            Text('Rectificativas ya existentes', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpace.xs),
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: Column(
+                children: [
+                  for (var i = 0; i < _rectificativasRelacionadas.length; i++) ...[
+                    if (i > 0) const Divider(height: 1, indent: 16),
+                    ListTile(
+                      dense: true,
+                      leading: Icon(
+                        Icons.receipt_long_outlined,
+                        color: _rectificativasRelacionadas[i].estado == EstadoFactura.anulada
+                            ? AppColors.inkFaint
+                            : AppColors.accentStrong,
+                      ),
+                      title: Text(
+                        _rectificativasRelacionadas[i].numero ??
+                            'Borrador sin emitir, ${_rectificativasRelacionadas[i].modalidadRectificacion == ModalidadRectificacion.importeResultante ? "importe resultante" : "por diferencias"}',
+                      ),
+                      subtitle: Text(
+                        [
+                          nombreEstadoFactura(_rectificativasRelacionadas[i].estado),
+                          if (_rectificativasRelacionadas[i].fechaEmision != null)
+                            formatDate(_rectificativasRelacionadas[i].fechaEmision!),
+                          formatCurrency(_rectificativasRelacionadas[i].totales.total),
+                        ].join(' · '),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          if (_resultanteBloqueada) ...[
+            const SizedBox(height: AppSpace.md),
+            Container(
+              padding: const EdgeInsets.all(AppSpace.sm + 4),
+              decoration: BoxDecoration(
+                color: AppColors.warningTint,
+                borderRadius: BorderRadius.circular(AppRadius.md),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.warning_amber_outlined, size: 18, color: AppColors.warning),
+                  const SizedBox(width: AppSpace.sm),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ya existe una corrección "importe resultante" vigente '
+                          '(${_resultanteVigente!.numero ?? "borrador sin emitir"}) sobre este '
+                          'documento. No se puede crear otra igual aquí -- '
+                          'correctamente, hay que corregir esa rectificativa, no el '
+                          'documento que ella ya sustituyó.',
+                          style: const TextStyle(fontSize: 12, height: 1.35),
+                        ),
+                        const SizedBox(height: AppSpace.xs),
+                        TextButton(
+                          onPressed: () => Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => InvoiceRectificationScreen(
+                                appData: widget.appData,
+                                facturaOriginal: _resultanteVigente!,
+                              ),
+                            ),
+                          ),
+                          child: const Text('Corregir esa rectificativa en su lugar'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
           const SizedBox(height: AppSpace.md),
           TextField(
             controller: _motivoCtrl,
@@ -310,14 +421,15 @@ class _InvoiceRectificationScreenState extends State<InvoiceRectificationScreen>
           Text('Modalidad', style: Theme.of(context).textTheme.headlineSmall),
           const SizedBox(height: AppSpace.sm),
           SegmentedButton<ModalidadRectificacion>(
-            segments: const [
-              ButtonSegment(
+            segments: [
+              const ButtonSegment(
                 value: ModalidadRectificacion.porDiferencias,
                 label: Text('Por diferencias'),
               ),
               ButtonSegment(
                 value: ModalidadRectificacion.importeResultante,
-                label: Text('Importe resultante'),
+                label: const Text('Importe resultante'),
+                enabled: !_resultanteBloqueada,
               ),
             ],
             selected: {_modalidad},

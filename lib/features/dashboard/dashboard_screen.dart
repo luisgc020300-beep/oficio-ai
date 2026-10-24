@@ -16,6 +16,7 @@ import '../../data/models/presupuesto.dart';
 import '../../data/models/trabajo.dart';
 import '../calendar/appointment_form_sheet.dart';
 import '../clients/client_form_sheet.dart';
+import '../expenses/expenses_list_screen.dart';
 import '../jobs/job_detail_screen.dart';
 import '../jobs/job_form_sheet.dart';
 import '../quotes/quote_form_screen.dart';
@@ -58,6 +59,14 @@ class DashboardScreen extends StatelessWidget {
       appBar: AppBar(
         title: const BrandMark(compact: true),
         actions: [
+          IconButton(
+            tooltip: 'Gastos',
+            icon: const Icon(Icons.receipt_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => ExpensesListScreen(appData: appData)),
+            ),
+          ),
           IconButton(
             tooltip: 'Mi negocio',
             icon: const Icon(Icons.store_outlined),
@@ -147,6 +156,24 @@ class DashboardScreen extends StatelessWidget {
           final saldoPendienteTotal = facturas
               .where((f) => f.estado == EstadoFactura.emitida)
               .fold<double>(0, (acc, f) => acc + f.saldoPendiente);
+          // Por fecha del GASTO, no por fecha de registro en la app --
+          // mismo criterio que fechaEmision para la facturación (encargo
+          // iteración 9, sección 5). Solo los activos: uno anulado nunca
+          // computa (ver Gasto.estado).
+          final totalGastadoMes = appData.gastos.activos
+              .where(
+                (g) => !g.fecha.isBefore(inicioMes) && g.fecha.isBefore(inicioMesSiguiente),
+              )
+              .fold<double>(0, (acc, g) => acc + g.importe);
+          // Estimación simple del mismo mes -- facturado menos gastado
+          // en ese mismo periodo. No es el margen real de ningún
+          // trabajo concreto (eso vive en job_detail_screen.dart,
+          // donde sí se puede atribuir cada gasto a su trabajo): aquí
+          // se mezclan los gastos de todos los trabajos con la
+          // facturación de todos ellos, así que solo tiene sentido como
+          // una cifra agregada del mes, nunca como "beneficio neto"
+          // (faltan costes indirectos, impuestos, etc.).
+          final margenEstimadoMes = totalFacturadoMes - totalGastadoMes;
           final facturasPendientes = facturas
               .where((f) => f.estado == EstadoFactura.emitida && !f.pagadaCompleta)
               .length;
@@ -353,6 +380,8 @@ class DashboardScreen extends StatelessWidget {
               _ResumenEconomico(
                 totalFacturadoMes: totalFacturadoMes,
                 totalCobradoMes: totalCobradoMes,
+                totalGastadoMes: totalGastadoMes,
+                margenEstimadoMes: margenEstimadoMes,
                 saldoPendienteTotal: saldoPendienteTotal,
                 facturasPendientes: facturasPendientes,
                 facturasVencidas: facturasVencidas,
@@ -536,6 +565,8 @@ class _ResumenEconomico extends StatelessWidget {
   const _ResumenEconomico({
     required this.totalFacturadoMes,
     required this.totalCobradoMes,
+    required this.totalGastadoMes,
+    required this.margenEstimadoMes,
     required this.saldoPendienteTotal,
     required this.facturasPendientes,
     required this.facturasVencidas,
@@ -545,6 +576,8 @@ class _ResumenEconomico extends StatelessWidget {
 
   final double totalFacturadoMes;
   final double totalCobradoMes;
+  final double totalGastadoMes;
+  final double margenEstimadoMes;
   final double saldoPendienteTotal;
   final int facturasPendientes;
   final int facturasVencidas;
@@ -576,6 +609,28 @@ class _ResumenEconomico extends StatelessWidget {
                     color: AppColors.success,
                     valor: formatCurrency(totalCobradoMes),
                     label: 'Cobrado este mes',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpace.sm),
+            Row(
+              children: [
+                Expanded(
+                  child: _MetricaEconomica(
+                    icon: Icons.receipt_outlined,
+                    color: AppColors.accentStrong,
+                    valor: formatCurrency(totalGastadoMes),
+                    label: 'Gastado este mes',
+                  ),
+                ),
+                const SizedBox(width: AppSpace.sm),
+                Expanded(
+                  child: _MetricaEconomica(
+                    icon: Icons.trending_up_outlined,
+                    color: margenEstimadoMes >= 0 ? AppColors.success : AppColors.error,
+                    valor: formatCurrency(margenEstimadoMes),
+                    label: 'Margen estimado del mes',
                   ),
                 ),
               ],

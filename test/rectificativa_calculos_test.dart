@@ -397,11 +397,11 @@ void main() {
       expect(efectoNeto, closeTo(85 * 1.21, 0.001));
     });
 
-    test('LIMITACIÓN REAL: en modalidad "importe resultante", una '
-        'segunda rectificativa que reemplaza a la primera debe '
-        'referenciarla A ELLA (encadenar), no a la factura original '
-        'directamente -- si no, el agregado económico no coincide con '
-        'el importe final verdadero', () async {
+    test('iteración 8.2: en modalidad "importe resultante", una segunda '
+        'rectificativa debe referenciar la ÚLTIMA corrección vigente '
+        '(encadenar), no la factura original directamente -- el '
+        'repositorio ahora RECHAZA el caso ambiguo que la iteración 8.1 '
+        'solo documentaba', () async {
       final repo = FacturaRepository(store);
       await repo.load();
       await repo.add(_borrador(id: 'o', precio: 100)); // total 121
@@ -464,32 +464,47 @@ void main() {
         ),
       );
       final r1b = await repo.emitir('r1-2', datosEmisor: _datosCompletos);
+
+      // El mismo intento de antes (referenciar la ORIGINAL en vez de
+      // r1b) ahora se rechaza al crear el borrador, antes incluso de
+      // llegar a calcular nada -- FacturaRepository.add() comprueba
+      // rectificativaResultanteVigenteDe(original2.id) y encuentra que
+      // r1-2 ya ocupa esa posición.
+      expect(
+        () => repo.add(
+          _borrador(
+            id: 'r2-mal',
+            precio: 90,
+            tipoDocumento: TipoDocumentoFactura.rectificativa,
+            serie: serieRectificativas,
+            facturaOriginalId: original2.id, // <- debería ser r1b.id
+            motivoRectificacion: 'Segunda corrección, sin encadenar (caso ahora rechazado)',
+            modalidadRectificacion: ModalidadRectificacion.importeResultante,
+          ),
+        ),
+        throwsStateError,
+      );
+      // Ni siquiera queda un borrador huérfano: la lista de facturas no
+      // creció con el intento rechazado.
+      expect(repo.byId('r2-mal'), isNull);
+
+      // Referenciando CORRECTAMENTE r1b (la corrección vigente), sí se
+      // puede crear y el agregado sí coincide con el valor real.
       await repo.add(
         _borrador(
-          id: 'r2-mal',
+          id: 'r2-bien2',
           precio: 90,
           tipoDocumento: TipoDocumentoFactura.rectificativa,
           serie: serieRectificativas,
-          facturaOriginalId: original2.id, // <- MAL: debería ser r1b.id
-          motivoRectificacion: 'Segunda corrección, sin encadenar (caso defectuoso)',
+          facturaOriginalId: r1b.id,
+          motivoRectificacion: 'Segunda corrección, encadenada correctamente',
           modalidadRectificacion: ModalidadRectificacion.importeResultante,
         ),
       );
-      final r2Mal = await repo.emitir('r2-mal', datosEmisor: _datosCompletos);
-      final efectoNetoMal =
-          repo.byId('o2')!.importeFacturacion + r1b.importeFacturacion + r2Mal.importeFacturacion;
-      // INCORRECTO a propósito: no coincide con 108,90 -- demuestra la
-      // limitación documentada en el informe. r2-mal se mide contra el
-      // ORIGINAL (121), no contra r1b (96,80): su propia
-      // importeRectificacion es 108,90 - 121 = -12,10, no los -3,30
-      // que daría si estuviera bien encadenada (108,90 - 96,80). Total:
-      // 121 - 24,20 - 12,10 = 84,70, no 108,90. Si esta aserción
-      // empezara a fallar porque alguien "arregló" el cálculo, hay que
-      // revisar el informe de la iteración 8.1 antes de tocar nada:
-      // puede que el arreglo imponga una regla de negocio
-      // (encadenamiento obligatorio) que nadie ha decidido todavía.
-      expect(efectoNetoMal, isNot(closeTo(totalFinalReal, 0.001)));
-      expect(efectoNetoMal, closeTo(84.7, 0.001));
+      final r2Bien2 = await repo.emitir('r2-bien2', datosEmisor: _datosCompletos);
+      final efectoNetoBien2 =
+          repo.byId('o2')!.importeFacturacion + r1b.importeFacturacion + r2Bien2.importeFacturacion;
+      expect(efectoNetoBien2, closeTo(totalFinalReal, 0.001));
     });
 
     test('registrarPago() rechaza cualquier intento sobre una '

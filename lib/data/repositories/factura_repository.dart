@@ -47,7 +47,8 @@ class FacturaRepository extends ChangeNotifier {
   /// 8); el lado "hacia atrás" es simplemente
   /// `byId(factura.facturaOriginalId)`. No hay límite de cuántas puede
   /// haber: corregir una rectificativa anterior es un caso real, no se
-  /// bloquea aquí.
+  /// bloquea aquí. Incluye las anuladas -- quien quiera solo las
+  /// vigentes puede filtrar por `estado` sobre el resultado.
   List<Factura> rectificativasDe(String facturaOriginalId) => _facturas
       .where(
         (f) =>
@@ -55,6 +56,52 @@ class FacturaRepository extends ChangeNotifier {
             f.facturaOriginalId == facturaOriginalId,
       )
       .toList();
+
+  /// La rectificativa en modalidad "importe resultante" que YA
+  /// referencia directamente [facturaId] y sigue vigente (iteración
+  /// 8.2) -- null si no hay ninguna, o si la única que hay está
+  /// anulada. Una rectificativa anulada deliberadamente NO cuenta aquí:
+  /// se anuló porque estaba mal, así que deja libre su hueco para que
+  /// una corrección nueva y correcta pueda crearse en su lugar (ver
+  /// add()). Un borrador sin emitir SÍ cuenta -- ya "reserva" la
+  /// posición aunque todavía no tenga número, para que dos borradores
+  /// "importe resultante" no puedan coexistir contra el mismo
+  /// documento.
+  ///
+  /// Es la pieza central de por qué el agregado económico de varias
+  /// rectificativas "importe resultante" puede salir mal si cada una
+  /// se calcula contra la factura original en vez de contra la
+  /// corrección vigente (ver informe de la iteración 8.1): mientras
+  /// esta función devuelva no-null para [facturaId], ningún otro
+  /// documento puede volver a corregirlo directamente en esa
+  /// modalidad -- hay que corregir la rectificativa vigente, no el
+  /// documento que ella ya sustituyó.
+  Factura? rectificativaResultanteVigenteDe(String facturaId) {
+    for (final f in rectificativasDe(facturaId)) {
+      if (f.modalidadRectificacion == ModalidadRectificacion.importeResultante &&
+          f.estado != EstadoFactura.anulada) {
+        return f;
+      }
+    }
+    return null;
+  }
+
+  /// true si, siguiendo facturaOriginalId hacia atrás desde
+  /// [facturaOriginalId], se llega a [nuevaFacturaId] o se repite un id
+  /// ya visitado -- una relación circular o corrupta. Antes de crear
+  /// cualquier rectificativa nueva, [nuevaFacturaId] todavía no existe
+  /// en ningún lado de la cadena (es un id recién generado), así que
+  /// esto solo puede dispararse por datos ya corruptos o por un id
+  /// duplicado -- de cualquier modo, nunca se debe guardar.
+  bool _formariaCiclo(String facturaOriginalId, String nuevaFacturaId) {
+    final visitados = <String>{nuevaFacturaId};
+    String? actualId = facturaOriginalId;
+    while (actualId != null) {
+      if (!visitados.add(actualId)) return true;
+      actualId = byId(actualId)?.facturaOriginalId;
+    }
+    return false;
+  }
 
   Future<void> load() async {
     final raw = _store.readList(_key);
@@ -92,6 +139,9 @@ class FacturaRepository extends ChangeNotifier {
           'Una rectificativa debe indicar la factura que corrige.',
         );
       }
+      if (originalId == factura.id) {
+        throw StateError('Una rectificativa no puede corregirse a sí misma.');
+      }
       final original = byId(originalId);
       if (original == null) {
         throw StateError('La factura original a rectificar ya no existe.');
@@ -101,6 +151,11 @@ class FacturaRepository extends ChangeNotifier {
           'Solo se puede rectificar una factura ya emitida.',
         );
       }
+      if (_formariaCiclo(originalId, factura.id)) {
+        throw StateError(
+          'Esta relación formaría un ciclo entre facturas rectificativas.',
+        );
+      }
       // El importe de la rectificación se calcula aquí, nunca se
       // confía en lo que pase quien llama -- mismo criterio que
       // numeroSecuencial en emitir(). Solo aplica a la modalidad que
@@ -108,6 +163,23 @@ class FacturaRepository extends ChangeNotifier {
       // sobre por qué, si no, se contaría la operación dos veces en los
       // indicadores agregados).
       if (factura.modalidadRectificacion == ModalidadRectificacion.importeResultante) {
+        // Si [original] ya tiene una rectificativa "importe resultante"
+        // vigente, esta nueva sería ambigua: el agregado económico
+        // (Factura.importeFacturacion) solo sale bien si cada
+        // corrección de esta modalidad se encadena a la ÚLTIMA vigente,
+        // nunca a un documento ya superado (ver informe 8.1 y la nota
+        // en rectificativaResultanteVigenteDe()). Se rechaza aquí, en
+        // el repositorio, para que ninguna otra vía de la app (no solo
+        // la pantalla) pueda crear la relación ambigua.
+        final vigente = rectificativaResultanteVigenteDe(originalId);
+        if (vigente != null) {
+          throw StateError(
+            'Ya existe una corrección "importe resultante" vigente '
+            '(${vigente.numero ?? "borrador sin emitir"}) sobre este '
+            'documento. Corrige esa rectificativa en su lugar, no la '
+            'factura que ella ya sustituyó.',
+          );
+        }
         aGuardar = factura.copyWith(
           importeRectificacion: calcularImporteRectificacion(
             totalOriginal: original.totales.total,

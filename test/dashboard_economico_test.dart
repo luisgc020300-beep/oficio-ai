@@ -15,6 +15,7 @@ import 'package:oficio_ai/data/models/concepto_presupuesto.dart';
 import 'package:oficio_ai/data/models/datos_negocio.dart';
 import 'package:oficio_ai/data/models/factura.dart';
 import 'package:oficio_ai/data/models/factura_totals.dart';
+import 'package:oficio_ai/data/models/gasto.dart';
 import 'package:oficio_ai/data/models/pago_factura.dart';
 import 'package:oficio_ai/data/models/presupuesto.dart';
 import 'package:oficio_ai/features/dashboard/dashboard_screen.dart';
@@ -39,6 +40,7 @@ Future<AppData> _appDataVacia() async {
     appData.presupuestos.load(),
     appData.citas.load(),
     appData.facturas.load(),
+    appData.gastos.load(),
   ]);
   return appData;
 }
@@ -314,10 +316,102 @@ void main() {
 
       // Si se duplicara, "Facturado este mes" mostraría 205,70 € (121 +
       // 84,70) en vez de la diferencia neta real: 121 - 36,30 = 84,70 €.
+      // findsWidgets, no findsOneWidget: sin gastos registrados en este
+      // escenario, "Margen estimado del mes" (iteración 9) coincide con
+      // "Facturado este mes" y el mismo importe aparece dos veces en
+      // la pantalla -- ambas apariciones son correctas, lo que importa
+      // es que NINGUNA sea el total duplicado (205,70 €).
       final netoEsperado = totalOriginal + importeRectificacion;
       expect(netoEsperado, 84.7);
-      expect(find.text(formatCurrency(netoEsperado)), findsOneWidget);
+      expect(find.text(formatCurrency(netoEsperado)), findsWidgets);
       expect(find.text(formatCurrency(totalOriginal + totalCorregido)), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'gastos: solo los activos del mes cuentan en "Gastado este mes", y '
+    'el margen estimado del mes es facturado menos gastado (iteración '
+    '9)',
+    (tester) async {
+      final appData = await _appDataVacia();
+      final hoy = DateTime.now();
+      final mesAnterior = DateTime(hoy.year, hoy.month - 1, 10);
+
+      // Facturado este mes: 100 + 21% = 121.
+      await appData.facturas.seedIfEmpty([
+        Factura(
+          id: 'f1',
+          clienteId: 'c1',
+          titulo: 'Factura de este mes',
+          conceptos: const [
+            ConceptoPresupuesto(
+              id: 'c1',
+              descripcion: 'Servicio',
+              cantidad: 1,
+              precioUnitario: 100,
+            ),
+          ],
+          estado: EstadoFactura.emitida,
+          anio: hoy.year,
+          numeroSecuencial: 1,
+          creadaEl: hoy,
+          fechaEmision: hoy,
+        ),
+      ]);
+
+      // Gastos: uno activo este mes (40), uno ANULADO este mes (no
+      // debe contar) y uno activo del mes ANTERIOR (no debe contar en
+      // "este mes").
+      await appData.gastos.add(
+        Gasto(
+          id: 'g1',
+          descripcion: 'Gasto de este mes',
+          importe: 40,
+          fecha: hoy,
+          creadoEl: hoy,
+        ),
+      );
+      await appData.gastos.add(
+        Gasto(
+          id: 'g2',
+          descripcion: 'Gasto anulado de este mes',
+          importe: 1000,
+          fecha: hoy,
+          creadoEl: hoy,
+        ),
+      );
+      await appData.gastos.anular('g2', 'Registrado por error');
+      await appData.gastos.add(
+        Gasto(
+          id: 'g3',
+          descripcion: 'Gasto del mes anterior',
+          importe: 500,
+          fecha: mesAnterior,
+          creadoEl: mesAnterior,
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DashboardScreen(
+            appData: appData,
+            onVerTrabajos: () {},
+            onVerPresupuestos: () {},
+            onVerFacturas: () {},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _scrollAResumenEconomico(tester);
+
+      // Gastado este mes = 40 (solo g1 -- g2 anulado, g3 es del mes
+      // anterior). Margen estimado = 121 (facturado) - 40 = 81.
+      expect(find.text(formatCurrency(40)), findsOneWidget);
+      expect(find.text(formatCurrency(81)), findsOneWidget);
+      // Controles negativos: ni el importe anulado ni el del mes
+      // anterior deben aparecer como si contaran.
+      expect(find.text(formatCurrency(1000)), findsNothing);
+      expect(find.text(formatCurrency(500)), findsNothing);
     },
   );
 }

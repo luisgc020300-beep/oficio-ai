@@ -7,8 +7,11 @@ import '../../core/widgets/confirm_delete_dialog.dart';
 import '../../core/widgets/demo_tag.dart';
 import '../../data/app_data.dart';
 import '../../data/models/concepto_presupuesto.dart';
+import '../../data/models/factura.dart';
+import '../../data/models/gasto.dart';
 import '../../data/models/trabajo.dart';
 import '../calendar/appointment_form_sheet.dart';
+import '../expenses/expense_form_sheet.dart';
 import '../invoices/invoice_detail_screen.dart';
 import '../invoices/invoice_form_screen.dart';
 import '../quotes/quote_detail_screen.dart';
@@ -40,6 +43,7 @@ class JobDetailScreen extends StatelessWidget {
         appData.presupuestos,
         appData.citas,
         appData.facturas,
+        appData.gastos,
       ]),
       builder: (context, _) {
         final trabajo = appData.trabajos.byId(trabajoId);
@@ -57,6 +61,51 @@ class JobDetailScreen extends StatelessWidget {
         final facturas = appData.facturas.porTrabajo(trabajo.id)
           ..sort((a, b) => b.creadaEl.compareTo(a.creadaEl));
         final color = _colorEstadoTrabajo(trabajo.estado);
+
+        // Rentabilidad del trabajo (iteración 9) -- solo facturas
+        // EMITIDAS de este trabajo, nunca borradores (serían importes
+        // que todavía pueden cambiar) ni anuladas (ya no tienen efecto
+        // fiscal). f.importeFacturacion, no f.totales.total: una
+        // rectificativa "importe resultante" ya declara la diferencia
+        // neta, no el importe completo -- sumar el total completo
+        // junto al de la original la contaría dos veces (ver
+        // Factura.importeFacturacion, iteración 8). Las rectificativas
+        // de este trabajo se encuentran aquí porque heredan su
+        // trabajoId de la factura que corrigen (ver
+        // invoice_rectification_screen.dart) -- sin eso, su ajuste
+        // desaparecería en silencio de este cálculo.
+        final facturasVigentes = facturas
+            .where((f) => f.estado == EstadoFactura.emitida)
+            .toList();
+        final facturadoAtribuible = facturasVigentes.fold<double>(
+          0,
+          (acc, f) => acc + f.importeFacturacion,
+        );
+        // Una rectificativa nunca tiene pagos propios (ver
+        // FacturaRepository.registrarPago()), así que sumar sus pagos
+        // (siempre vacíos) junto a los de la original no duplica nada.
+        final cobradoAtribuible = facturasVigentes
+            .expand((f) => f.pagos)
+            .fold<double>(0, (acc, p) => acc + p.importe);
+        final saldoPendienteAtribuible = facturasVigentes.fold<double>(
+          0,
+          (acc, f) => acc + f.saldoPendiente,
+        );
+        final gastosTrabajo = appData.gastos.porTrabajo(trabajo.id)
+          ..sort((a, b) => b.fecha.compareTo(a.fecha));
+        final gastosActivosTrabajo = gastosTrabajo
+            .where((g) => g.estado == EstadoGasto.activo)
+            .toList();
+        final totalGastosTrabajo = gastosActivosTrabajo.fold<double>(
+          0,
+          (acc, g) => acc + g.importe,
+        );
+        // "Margen estimado", nunca "beneficio neto" -- faltan costes
+        // indirectos, impuestos y demás (encargo, sección 4). Solo se
+        // muestra si hay algo que mostrar: ni facturas emitidas ni
+        // gastos todavía no es lo mismo que "margen cero".
+        final hayDatosEconomicos = facturasVigentes.isNotEmpty || gastosActivosTrabajo.isNotEmpty;
+        final margenEstimadoTrabajo = facturadoAtribuible - totalGastosTrabajo;
 
         return Scaffold(
           appBar: AppBar(
@@ -291,6 +340,102 @@ class JobDetailScreen extends StatelessWidget {
                   ),
                 ),
               ],
+              if (hayDatosEconomicos) ...[
+                const SizedBox(height: AppSpace.lg),
+                Text('Rentabilidad', style: Theme.of(context).textTheme.headlineSmall),
+                const SizedBox(height: AppSpace.sm),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpace.md),
+                    child: Column(
+                      children: [
+                        _FilaRentabilidad('Facturado', facturadoAtribuible),
+                        _FilaRentabilidad('Cobrado', cobradoAtribuible),
+                        _FilaRentabilidad('Pendiente de cobro', saldoPendienteAtribuible),
+                        _FilaRentabilidad('Gastos', -totalGastosTrabajo),
+                        const Divider(height: AppSpace.lg),
+                        _FilaRentabilidad(
+                          'Margen estimado',
+                          margenEstimadoTrabajo,
+                          destacado: true,
+                        ),
+                        const SizedBox(height: AppSpace.xs),
+                        Text(
+                          'Estimación a partir de lo facturado y los gastos registrados -- '
+                          'no es el beneficio neto: no incluye costes indirectos ni impuestos.',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: AppSpace.lg),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Gastos', style: Theme.of(context).textTheme.headlineSmall),
+                  TextButton.icon(
+                    onPressed: () => mostrarFormularioGasto(
+                      context,
+                      appData: appData,
+                      trabajoIdFijo: trabajo.id,
+                    ),
+                    icon: const Icon(Icons.add, size: 18),
+                    label: const Text('Añadir'),
+                  ),
+                ],
+              ),
+              if (gastosTrabajo.isEmpty)
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(AppSpace.md),
+                    child: Text(
+                      'Todavía no hay gastos registrados para este trabajo.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                )
+              else
+                Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < gastosTrabajo.length; i++) ...[
+                        if (i > 0) const Divider(height: 1, indent: 16),
+                        ListTile(
+                          leading: Icon(
+                            Icons.receipt_outlined,
+                            color: gastosTrabajo[i].estado == EstadoGasto.anulado
+                                ? AppColors.inkFaint
+                                : AppColors.accentStrong,
+                          ),
+                          title: Text(gastosTrabajo[i].descripcion),
+                          subtitle: Text(
+                            '${formatDate(gastosTrabajo[i].fecha)} · '
+                            '${nombreCategoriaGasto(gastosTrabajo[i].categoria)}'
+                            '${gastosTrabajo[i].estado == EstadoGasto.anulado ? ' · Anulado' : ''}',
+                          ),
+                          trailing: Text(
+                            formatCurrency(gastosTrabajo[i].importe),
+                            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                              decoration: gastosTrabajo[i].estado == EstadoGasto.anulado
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
+                          ),
+                          onTap: gastosTrabajo[i].estado == EstadoGasto.anulado
+                              ? null
+                              : () => mostrarFormularioGasto(
+                                  context,
+                                  appData: appData,
+                                  existente: gastosTrabajo[i],
+                                ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               const SizedBox(height: AppSpace.lg),
               Text(
                 'Citas programadas',
@@ -460,5 +605,34 @@ class _AccionesEstado extends StatelessWidget {
         // (p. ej. se canceló por error), se hace desde "Editar".
         return const SizedBox.shrink();
     }
+  }
+}
+
+/// Fila de la tarjeta de rentabilidad (iteración 9) -- mismo patrón
+/// visual que _FilaTotalDetalle de invoice_detail_screen.dart.
+class _FilaRentabilidad extends StatelessWidget {
+  const _FilaRentabilidad(this.label, this.valor, {this.destacado = false});
+
+  final String label;
+  final double valor;
+  final bool destacado;
+
+  @override
+  Widget build(BuildContext context) {
+    final style = destacado
+        ? Theme.of(context).textTheme.headlineSmall?.copyWith(
+            color: valor >= 0 ? AppColors.success : AppColors.error,
+          )
+        : Theme.of(context).textTheme.bodyLarge;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: style),
+          Text(formatCurrency(valor), style: style),
+        ],
+      ),
+    );
   }
 }
