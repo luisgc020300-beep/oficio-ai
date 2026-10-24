@@ -88,6 +88,24 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Genera el icono de app (iOS + Android) a partir de assets/icon/ --
+  # solo se usa en tiempo de desarrollo (`dart run flutter_launcher_icons`),
+  # no se empaqueta en la app.
+  flutter_launcher_icons: ^0.14.4
+
+# Icono de la app: mismo monograma "O" que BrandMark (lib/core/widgets/
+# brand_mark.dart) -- degradado AppColors.primary -> primaryStrong con la
+# "O" en blanco. icon.png para iOS/Android legacy; background/foreground
+# para el icono adaptativo de Android (la "O" se mantiene dentro de la
+# zona segura para no recortarse con las máscaras circulares/squircle).
+flutter_launcher_icons:
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  image_path: "assets/icon/icon.png"
+  adaptive_icon_background: "assets/icon/icon_background.png"
+  adaptive_icon_foreground: "assets/icon/icon_foreground.png"
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
