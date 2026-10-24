@@ -13,6 +13,7 @@
 //   ya persistidos (nunca de una bandera aparte que alguien pueda dejar
 //   desincronizada), un simple refresco de la interfaz no puede hacer
 //   que una factura pagada vuelva a verse como pendiente.
+import 'cliente_snapshot.dart';
 import 'concepto_presupuesto.dart';
 import 'datos_negocio.dart';
 import 'factura_totals.dart';
@@ -50,6 +51,7 @@ class Factura {
     this.pagos = const [],
     this.esDemo = false,
     this.datosEmisor,
+    this.datosCliente,
   });
 
   final String id;
@@ -94,6 +96,15 @@ class Factura {
   /// facturas sin emitir y en las emitidas antes de que este campo
   /// existiera (compatibilidad hacia atrás).
   final DatosNegocio? datosEmisor;
+
+  /// Fotografía de los datos del cliente en el momento de EMITIR --
+  /// mismo principio y mismas garantías que [datosEmisor] (iteración
+  /// 7.1), pero para el cliente en vez del negocio: a diferencia de
+  /// [clienteId] (que sigue apuntando al registro real, para conservar
+  /// la navegación y la relación), esto no cambia si el cliente edita
+  /// después su nombre o domicilio. Null en borradores y en facturas
+  /// emitidas antes de que este campo existiera.
+  final ClienteSnapshot? datosCliente;
 
   /// Referencia visible, p. ej. "2026-0003". Null mientras es borrador.
   String? get numero => (anio == null || numeroSecuencial == null)
@@ -144,6 +155,7 @@ class Factura {
     DateTime? fechaAnulacion,
     List<PagoFactura>? pagos,
     DatosNegocio? datosEmisor,
+    ClienteSnapshot? datosCliente,
   }) => Factura(
     id: id,
     clienteId: clienteId ?? this.clienteId,
@@ -164,6 +176,7 @@ class Factura {
     pagos: pagos ?? this.pagos,
     esDemo: esDemo,
     datosEmisor: datosEmisor ?? this.datosEmisor,
+    datosCliente: datosCliente ?? this.datosCliente,
   );
 
   Map<String, dynamic> toJson() => {
@@ -186,6 +199,7 @@ class Factura {
     'pagos': pagos.map((p) => p.toJson()).toList(),
     'esDemo': esDemo,
     'datosEmisor': datosEmisor?.toJson(),
+    'datosCliente': datosCliente?.toJson(),
   };
 
   factory Factura.fromJson(Map<String, dynamic> json) => Factura(
@@ -221,6 +235,9 @@ class Factura {
     esDemo: json['esDemo'] as bool? ?? false,
     datosEmisor: json['datosEmisor'] != null
         ? DatosNegocio.fromJson(json['datosEmisor'] as Map<String, dynamic>)
+        : null,
+    datosCliente: json['datosCliente'] != null
+        ? ClienteSnapshot.fromJson(json['datosCliente'] as Map<String, dynamic>)
         : null,
   );
 }

@@ -5,13 +5,16 @@ import '../../core/theme/app_colors.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/demo_tag.dart';
 import '../../data/app_data.dart';
+import '../../data/models/cliente_snapshot.dart';
 import '../../data/models/datos_negocio.dart';
 import '../../data/models/factura.dart';
 import '../../data/models/pago_factura.dart';
+import '../../services/factura_pdf_service.dart';
 import '../jobs/job_detail_screen.dart';
 import '../quotes/quote_detail_screen.dart';
 import '../settings/business_settings_screen.dart';
 import 'invoice_form_screen.dart';
+import 'invoice_pdf_preview_screen.dart';
 import 'payment_form_sheet.dart';
 
 /// Etiqueta visible combinando el estado guardado (borrador/emitida/
@@ -114,17 +117,59 @@ class InvoiceDetailScreen extends StatelessWidget {
       ),
     );
     if (confirmar != true) return;
+    final cliente = appData.clientes.byId(factura.clienteId);
     try {
       await appData.facturas.emitir(
         factura.id,
         fechaVencimiento: fechaVencimiento,
         datosEmisor: datosNegocio!,
+        datosCliente: cliente != null ? ClienteSnapshot.desde(cliente) : null,
       );
     } on StateError catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message)));
       }
     }
+  }
+
+  /// Solo lee datos -- generar o ver el PDF nunca emite, numera, cobra
+  /// ni cambia nada de la factura (encargo iteración 7, secciones 5 y
+  /// 7). Si es una factura emitida sin fotografía histórica del emisor
+  /// (anterior a "Mi negocio"), avisa explícitamente antes de generar
+  /// un documento que, por fuerza, queda incompleto en esa parte.
+  Future<void> _verPdf(BuildContext context, Factura factura) async {
+    if (FacturaPdfService.faltanDatosHistoricosEmisor(factura)) {
+      final continuar = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Faltan datos históricos del emisor'),
+          content: const Text(
+            'Esta factura se emitió antes de guardar una fotografía de los '
+            'datos del negocio en ese momento. El PDF se puede generar, '
+            'pero el apartado del emisor quedará incompleto -- nunca se '
+            'rellena con los datos actuales de "Mi negocio" para no '
+            'alterar un documento histórico.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Generar igualmente'),
+            ),
+          ],
+        ),
+      );
+      if (continuar != true || !context.mounted) return;
+    }
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => InvoicePdfPreviewScreen(appData: appData, factura: factura),
+      ),
+    );
   }
 
   Future<void> _anular(BuildContext context, Factura factura) async {
@@ -218,6 +263,11 @@ class InvoiceDetailScreen extends StatelessWidget {
               ],
             ),
             actions: [
+              IconButton(
+                tooltip: 'Ver PDF',
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                onPressed: () => _verPdf(context, factura),
+              ),
               if (esBorrador) ...[
                 IconButton(
                   icon: const Icon(Icons.edit_outlined),

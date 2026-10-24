@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
 
 import '../local/local_store.dart';
+import '../models/cliente_snapshot.dart';
 import '../models/datos_negocio.dart';
 import '../models/factura.dart';
 import '../models/pago_factura.dart';
@@ -108,9 +109,16 @@ class FacturaRepository extends ChangeNotifier {
   /// "Mi negocio" (encargo iteración 6, sección 6), pero aquí se vuelve
   /// a exigir para que ningún otro punto de la app pueda saltársela.
   /// Se guarda tal cual, como fotografía -- ver Factura.datosEmisor.
+  ///
+  /// [datosCliente] (iteración 7.1) es opcional y nunca bloquea la
+  /// emisión -- a diferencia del emisor, no hay una pantalla de
+  /// "completar datos del cliente" a la que mandar al usuario; si el
+  /// cliente fue borrado antes de emitir, sencillamente no hay
+  /// fotografía que guardar (ver Factura.datosCliente).
   Future<Factura> emitir(
     String id, {
     required DatosNegocio datosEmisor,
+    ClienteSnapshot? datosCliente,
     DateTime? fechaVencimiento,
   }) async {
     final actual = byId(id);
@@ -144,6 +152,7 @@ class FacturaRepository extends ChangeNotifier {
       fechaEmision: ahora,
       fechaVencimiento: fechaVencimiento,
       datosEmisor: datosEmisor,
+      datosCliente: datosCliente,
     );
     await _guardar(_facturas.map((f) => f.id == id ? emitida : f).toList());
     return emitida;
@@ -215,9 +224,23 @@ class FacturaRepository extends ChangeNotifier {
     return actualizada;
   }
 
+  /// Si falla la escritura en disco (p. ej. el almacenamiento está
+  /// lleno), el estado en memoria vuelve a como estaba antes -- nunca
+  /// se queda con una factura "emitida" en memoria que en realidad no
+  /// se llegó a guardar (iteración 7.1, sección 2: "evita que la
+  /// factura quede marcada como emitida pero [la persistencia] no se
+  /// guarde"). No es una transacción de verdad -- SharedPreferences no
+  /// ofrece eso -- pero sí evita que memoria y disco diverjan en el
+  /// único punto donde todas las escrituras de este repositorio pasan.
   Future<void> _guardar(List<Factura> nuevaLista) async {
+    final anterior = _facturas;
     _facturas = nuevaLista..sort((a, b) => b.creadaEl.compareTo(a.creadaEl));
-    await _persist();
+    try {
+      await _persist();
+    } catch (_) {
+      _facturas = anterior;
+      rethrow;
+    }
     notifyListeners();
   }
 

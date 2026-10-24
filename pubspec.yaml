@@ -50,6 +50,30 @@ dependencies:
   # Tipografía propia -- evita el aspecto "Flutter por defecto".
   google_fonts: ^6.3.1
 
+  # Generación del PDF de factura (iteración 7) -- composición pura en
+  # Dart, sin plugin nativo, funciona sin conexión.
+  pdf: ^3.12.0
+
+  # Vista previa (zoom, paginación, imprimir) y compartir/guardar el PDF
+  # generado mediante el selector nativo de cada plataforma -- del mismo
+  # autor que "pdf", pensado para trabajar junto a él. Evita añadir
+  # share_plus/file_picker aparte: Printing.sharePdf() ya abre el
+  # selector nativo, que en Android/iOS incluye guardar en Archivos/
+  # Drive, cubriendo "guardar" sin una dependencia adicional.
+  printing: ^5.14.3
+
+  # Dependencia transitiva de pdf/printing, fijada aquí a propósito
+  # (revisión iteración 7.1 -- ver pubspec.lock y el informe): image
+  # 4.11.0 empezó a llamar ZLibDecoder.decodeLazy() sin subir su propio
+  # mínimo declarado de `archive` (se quedó en ^4.0.9, cuando ese método
+  # no existe hasta archive 4.3.0). pdf 3.12.0 limita `archive` a
+  # <4.1.0, así que la única combinación que no viola lo que NINGUNO de
+  # los dos paquetes declara admitir es una versión de `image` anterior
+  # a la 4.11.0 -- sin necesidad de forzar `archive` fuera del rango que
+  # pdf dice soportar (image corrigió este mismo fallo en su propia
+  # pubspec en la versión 4.12.0, subiendo su mínimo a archive ^4.5.0).
+  image: '>=4.1.0 <4.11.0'
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -72,10 +96,17 @@ flutter:
   # the material Icons class.
   uses-material-design: true
 
-  # To add assets to your application, add an assets section, like this:
-  # assets:
-  #   - images/a_dot_burr.jpeg
-  #   - images/a_dot_ham.jpeg
+  # PT Sans (ParaType, licencia SIL Open Font License -- ver
+  # assets/fonts/OFL.txt) incrustada en el PDF de facturas: a diferencia
+  # de Helvetica (fuente base del paquete `pdf`, sin tabla Unicode), PT
+  # Sans sí trae el glifo del símbolo "€" y las vocales acentuadas/ñ en
+  # la misma tabla -- se descarga una sola vez al desarrollar (como
+  # cualquier asset del proyecto) y queda empaquetada en el APK, sin que
+  # la app la vuelva a descargar nunca en tiempo de ejecución. Ver
+  # FacturaPdfService._tema().
+  assets:
+    - assets/fonts/PTSans-Regular.ttf
+    - assets/fonts/PTSans-Bold.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images
