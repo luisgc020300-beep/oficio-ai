@@ -15,6 +15,7 @@ import '../../data/models/cita.dart';
 import '../../data/models/factura.dart';
 import '../../data/models/presupuesto.dart';
 import '../../data/models/trabajo.dart';
+import '../assistant/assistant_screen.dart';
 import '../calendar/appointment_form_sheet.dart';
 import '../clients/client_form_sheet.dart';
 import '../expenses/expenses_list_screen.dart';
@@ -77,6 +78,14 @@ class DashboardScreen extends StatelessWidget {
             onPressed: () => Navigator.push(
               context,
               MaterialPageRoute(builder: (_) => BusinessSettingsScreen(appData: appData)),
+            ),
+          ),
+          IconButton(
+            tooltip: 'Asistente',
+            icon: const Icon(Icons.smart_toy_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(builder: (_) => AssistantScreen(appData: appData)),
             ),
           ),
           IconButton(
