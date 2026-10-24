@@ -11,7 +11,7 @@ class StatTile extends StatelessWidget {
     required this.icon,
     required this.value,
     required this.label,
-    this.color = AppColors.primary,
+    this.color,
     this.onTap,
     super.key,
   });
@@ -19,11 +19,12 @@ class StatTile extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
-  final Color color;
+  final Color? color;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final tileColor = color ?? AppColors.primary;
     return Card(
       child: InkWell(
         onTap: onTap,
@@ -37,10 +38,10 @@ class StatTile extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: color.withValues(alpha: 0.12),
+                  color: tileColor.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(AppRadius.sm),
                 ),
-                child: Icon(icon, size: 18, color: color),
+                child: Icon(icon, size: 18, color: tileColor),
               ),
               const SizedBox(height: AppSpace.sm),
               Text(

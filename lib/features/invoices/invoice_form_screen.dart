@@ -305,7 +305,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.info_outline,
                     size: 18,
                     color: AppColors.primary,
@@ -418,7 +418,7 @@ class _InvoiceFormScreenState extends State<InvoiceFormScreen> {
             AppSpace.md,
             AppSpace.md,
           ),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface,
             border: Border(top: BorderSide(color: AppColors.border)),
           ),
@@ -498,7 +498,7 @@ class _FilaConceptoWidget extends StatelessWidget {
                 ),
                 if (onQuitar != null)
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.close,
                       size: 18,
                       color: AppColors.inkFaint,

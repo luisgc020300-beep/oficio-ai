@@ -155,9 +155,9 @@ class _AppointmentFormSheetState extends State<_AppointmentFormSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: Container(
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.background,
-          borderRadius: BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(AppRadius.lg)),
         ),
         padding: const EdgeInsets.fromLTRB(
           AppSpace.lg,
@@ -289,12 +289,12 @@ class _AppointmentFormSheetState extends State<_AppointmentFormSheet> {
                       if (context.mounted) Navigator.pop(context);
                     }
                   },
-                  icon: const Icon(
+                  icon: Icon(
                     Icons.delete_outline,
                     size: 18,
                     color: AppColors.error,
                   ),
-                  label: const Text(
+                  label: Text(
                     'Eliminar cita',
                     style: TextStyle(color: AppColors.error),
                   ),

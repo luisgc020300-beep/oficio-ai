@@ -56,4 +56,26 @@ class AppData {
     await data.facturas.seedIfEmpty(demoFacturas);
     return data;
   }
+
+  /// "Cerrar sesión" (pantalla de Ajustes): esta app no tiene cuentas ni
+  /// backend -- todo vive en este dispositivo -- así que lo más honesto
+  /// que puede hacer un "cerrar sesión" es borrar esos datos y dejar la
+  /// app como recién instalada, con la misma semilla de ejemplo que
+  /// vería alguien que la abre por primera vez (ver bootstrap()).
+  Future<void> cerrarSesion() async {
+    await Future.wait([
+      clientes.limpiar(),
+      trabajos.limpiar(),
+      presupuestos.limpiar(),
+      citas.limpiar(),
+      facturas.limpiar(),
+      gastos.limpiar(),
+      negocio.limpiar(),
+    ]);
+    await clientes.seedIfEmpty(demoClientes);
+    await trabajos.seedIfEmpty(demoTrabajos);
+    await presupuestos.seedIfEmpty(demoPresupuestos);
+    await citas.seedIfEmpty(demoCitas);
+    await facturas.seedIfEmpty(demoFacturas);
+  }
 }

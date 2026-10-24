@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 
 import 'core/theme/app_colors.dart';
+import 'core/theme/theme_controller.dart';
 import 'data/app_data.dart';
 import 'features/assistant/assistant_screen.dart';
 import 'features/calendar/calendar_screen.dart';
@@ -17,9 +18,10 @@ import 'features/jobs/jobs_list_screen.dart';
 import 'features/quotes/quotes_list_screen.dart';
 
 class AppShell extends StatefulWidget {
-  const AppShell({required this.appData, super.key});
+  const AppShell({required this.appData, this.themeController, super.key});
 
   final AppData appData;
+  final ThemeController? themeController;
 
   @override
   State<AppShell> createState() => _AppShellState();
@@ -35,6 +37,7 @@ class _AppShellState extends State<AppShell> {
     final pantallas = [
       DashboardScreen(
         appData: widget.appData,
+        themeController: widget.themeController,
         onVerTrabajos: () => _irA(2),
         onVerPresupuestos: () => _irA(3),
         onVerFacturas: () => _irA(4),

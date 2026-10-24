@@ -334,7 +334,7 @@ class _QuoteFormScreenState extends State<QuoteFormScreen> {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.auto_awesome_outlined,
                       size: 18,
                       color: AppColors.accentStrong,
@@ -427,7 +427,7 @@ class _QuoteFormScreenState extends State<QuoteFormScreen> {
             AppSpace.md,
             AppSpace.md,
           ),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface,
             border: Border(top: BorderSide(color: AppColors.border)),
           ),
@@ -503,7 +503,7 @@ class _FilaConceptoWidget extends StatelessWidget {
                 ),
                 if (onQuitar != null)
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.close,
                       size: 18,
                       color: AppColors.inkFaint,

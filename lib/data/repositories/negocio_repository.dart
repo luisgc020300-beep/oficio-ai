@@ -32,4 +32,12 @@ class NegocioRepository extends ChangeNotifier {
     await _store.writeObject(_key, datos.toJson());
     notifyListeners();
   }
+
+  /// Borra los datos del negocio del dispositivo -- usado al "cerrar
+  /// sesión" (ver settings_screen.dart).
+  Future<void> limpiar() async {
+    _datos = null;
+    await _store.remove(_key);
+    notifyListeners();
+  }
 }

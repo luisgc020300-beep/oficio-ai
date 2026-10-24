@@ -15,7 +15,7 @@ class AppListTile extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.trailing,
-    this.iconColor = AppColors.primary,
+    this.iconColor,
     this.onTap,
     this.esDemo = false,
     super.key,
@@ -25,7 +25,7 @@ class AppListTile extends StatelessWidget {
   final String title;
   final String? subtitle;
   final Widget? trailing;
-  final Color iconColor;
+  final Color? iconColor;
   final VoidCallback? onTap;
 
   /// Marca la fila con una etiqueta discreta "Demo" -- para que un dato
@@ -34,6 +34,7 @@ class AppListTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final color = iconColor ?? AppColors.primary;
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppRadius.md),
@@ -48,10 +49,10 @@ class AppListTile extends StatelessWidget {
               width: 40,
               height: 40,
               decoration: BoxDecoration(
-                color: iconColor.withValues(alpha: 0.12),
+                color: color.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(AppRadius.sm),
               ),
-              child: Icon(icon, size: 19, color: iconColor),
+              child: Icon(icon, size: 19, color: color),
             ),
             const SizedBox(width: AppSpace.sm + 4),
             Expanded(

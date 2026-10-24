@@ -46,7 +46,7 @@ class InvoicePdfPreviewScreen extends StatelessWidget {
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_outlined, size: 18, color: AppColors.warning),
+                  Icon(Icons.warning_amber_outlined, size: 18, color: AppColors.warning),
                   const SizedBox(width: AppSpace.sm),
                   Expanded(
                     child: Text(

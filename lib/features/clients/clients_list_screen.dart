@@ -98,7 +98,7 @@ class _ClientsListScreenState extends State<ClientsListScreen> {
                             title: c.nombre,
                             esDemo: c.esDemo,
                             subtitle: c.telefono ?? c.email ?? 'Sin contacto',
-                            trailing: const Icon(
+                            trailing: Icon(
                               Icons.chevron_right,
                               color: AppColors.inkFaint,
                             ),

@@ -25,7 +25,7 @@ class BrandMark extends StatelessWidget {
           width: tamano,
           height: tamano,
           decoration: BoxDecoration(
-            gradient: const LinearGradient(
+            gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: [AppColors.primary, AppColors.primaryStrong],

@@ -53,11 +53,12 @@ ThemeData buildAppTheme() {
 
   return ThemeData(
     useMaterial3: true,
+    brightness: AppColors.esOscuro ? Brightness.dark : Brightness.light,
     scaffoldBackgroundColor: AppColors.background,
     textTheme: textTheme,
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.primary,
-      brightness: Brightness.light,
+      brightness: AppColors.esOscuro ? Brightness.dark : Brightness.light,
       primary: AppColors.primary,
       onPrimary: Colors.white,
       secondary: AppColors.accent,
@@ -78,11 +79,11 @@ ThemeData buildAppTheme() {
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppRadius.md),
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
       ),
       margin: EdgeInsets.zero,
     ),
-    dividerTheme: const DividerThemeData(
+    dividerTheme: DividerThemeData(
       color: AppColors.border,
       thickness: 1,
       space: 1,
@@ -100,14 +101,14 @@ ThemeData buildAppTheme() {
       ),
       errorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        borderSide: const BorderSide(color: AppColors.error),
+        borderSide: BorderSide(color: AppColors.error),
       ),
       focusedErrorBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(AppRadius.sm),
-        borderSide: const BorderSide(color: AppColors.error, width: 1.5),
+        borderSide: BorderSide(color: AppColors.error, width: 1.5),
       ),
-      labelStyle: const TextStyle(color: AppColors.inkMuted),
-      hintStyle: const TextStyle(color: AppColors.inkFaint),
+      labelStyle: TextStyle(color: AppColors.inkMuted),
+      hintStyle: TextStyle(color: AppColors.inkFaint),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
@@ -123,7 +124,7 @@ ThemeData buildAppTheme() {
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.primary,
-        side: const BorderSide(color: AppColors.border),
+        side: BorderSide(color: AppColors.border),
         padding: const EdgeInsets.symmetric(vertical: 14),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
@@ -137,16 +138,16 @@ ThemeData buildAppTheme() {
         textStyle: textTheme.labelLarge,
       ),
     ),
-    floatingActionButtonTheme: const FloatingActionButtonThemeData(
+    floatingActionButtonTheme: FloatingActionButtonThemeData(
       backgroundColor: AppColors.accent,
       foregroundColor: Colors.white,
     ),
     chipTheme: ChipThemeData(
       backgroundColor: AppColors.surfaceMuted,
       selectedColor: AppColors.primary,
-      side: const BorderSide(color: AppColors.border),
+      side: BorderSide(color: AppColors.border),
       shape: const StadiumBorder(),
-      labelStyle: const TextStyle(
+      labelStyle: TextStyle(
         fontSize: 12.5,
         fontWeight: FontWeight.w600,
         color: AppColors.ink,
@@ -166,7 +167,7 @@ ThemeData buildAppTheme() {
         borderRadius: BorderRadius.circular(AppRadius.sm),
       ),
     ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+    bottomNavigationBarTheme: BottomNavigationBarThemeData(
       backgroundColor: AppColors.surface,
       selectedItemColor: AppColors.primary,
       unselectedItemColor: AppColors.inkFaint,

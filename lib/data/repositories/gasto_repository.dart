@@ -128,4 +128,12 @@ class GastoRepository extends ChangeNotifier {
 
   Future<void> _persist() =>
       _store.writeList(_key, _gastos.map((g) => g.toJson()).toList());
+
+  /// Borra todos los gastos del dispositivo -- usado al "cerrar sesión"
+  /// (ver settings_screen.dart).
+  Future<void> limpiar() async {
+    _gastos = [];
+    await _store.remove(_key);
+    notifyListeners();
+  }
 }

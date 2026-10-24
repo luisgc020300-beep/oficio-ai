@@ -41,4 +41,14 @@ class LocalStore {
   Future<void> writeObject(String key, Map<String, dynamic> value) {
     return _prefs.setString(key, jsonEncode(value));
   }
+
+  /// Borra una clave por completo -- usado para "cerrar sesión" (borrar
+  /// todos los datos del dispositivo) y para preferencias sueltas como la
+  /// apariencia.
+  Future<void> remove(String key) => _prefs.remove(key);
+
+  bool readBool(String key, {required bool orElse}) =>
+      _prefs.getBool(key) ?? orElse;
+
+  Future<void> writeBool(String key, bool value) => _prefs.setBool(key, value);
 }

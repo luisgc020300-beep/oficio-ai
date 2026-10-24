@@ -13,7 +13,7 @@ class LocalEngineBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Chip(
-      avatar: const Icon(
+      avatar: Icon(
         Icons.science_outlined,
         size: 16,
         color: AppColors.accentStrong,
@@ -21,7 +21,7 @@ class LocalEngineBadge extends StatelessWidget {
       label: const Text('Motor local de demostración -- sin IA real todavía'),
       backgroundColor: AppColors.accentTint,
       side: BorderSide.none,
-      labelStyle: const TextStyle(
+      labelStyle: TextStyle(
         color: AppColors.accentStrong,
         fontWeight: FontWeight.w600,
       ),

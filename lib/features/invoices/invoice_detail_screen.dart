@@ -478,7 +478,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                         for (var i = 0; i < factura.pagos.length; i++) ...[
                           if (i > 0) const Divider(height: 1, indent: 16),
                           ListTile(
-                            leading: const Icon(
+                            leading: Icon(
                               Icons.payments_outlined,
                               color: AppColors.success,
                             ),
@@ -533,7 +533,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                     label: const Text('Anular factura'),
                     style: OutlinedButton.styleFrom(
                       foregroundColor: AppColors.error,
-                      side: const BorderSide(color: AppColors.error),
+                      side: BorderSide(color: AppColors.error),
                     ),
                   ),
                 ),
@@ -547,7 +547,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                 const SizedBox(height: AppSpace.sm),
                 Card(
                   child: ListTile(
-                    leading: const Icon(
+                    leading: Icon(
                       Icons.receipt_long_outlined,
                       color: AppColors.accentStrong,
                     ),
@@ -580,7 +580,7 @@ class InvoiceDetailScreen extends StatelessWidget {
                       for (var i = 0; i < rectificativas.length; i++) ...[
                         if (i > 0) const Divider(height: 1, indent: 16),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.receipt_long_outlined,
                             color: AppColors.accentStrong,
                           ),

@@ -61,6 +61,14 @@ class CitaRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Borra todas las citas del dispositivo -- usado al "cerrar sesión"
+  /// (ver settings_screen.dart).
+  Future<void> limpiar() async {
+    _citas = [];
+    await _store.remove(_key);
+    notifyListeners();
+  }
+
   Future<void> _persist() =>
       _store.writeList(_key, _citas.map((c) => c.toJson()).toList());
 }

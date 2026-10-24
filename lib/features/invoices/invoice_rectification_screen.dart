@@ -320,7 +320,7 @@ class _InvoiceRectificationScreenState extends State<InvoiceRectificationScreen>
         children: [
           Card(
             child: ListTile(
-              leading: const Icon(Icons.receipt_long_outlined, color: AppColors.primary),
+              leading: Icon(Icons.receipt_long_outlined, color: AppColors.primary),
               title: Text('Rectifica a ${original.numero ?? original.titulo}'),
               subtitle: Text(
                 'La corrección se calculará contra este documento -- total: '
@@ -376,7 +376,7 @@ class _InvoiceRectificationScreenState extends State<InvoiceRectificationScreen>
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.warning_amber_outlined, size: 18, color: AppColors.warning),
+                  Icon(Icons.warning_amber_outlined, size: 18, color: AppColors.warning),
                   const SizedBox(width: AppSpace.sm),
                   Expanded(
                     child: Column(
@@ -462,7 +462,7 @@ class _InvoiceRectificationScreenState extends State<InvoiceRectificationScreen>
       ),
       bottomSheet: Container(
         padding: const EdgeInsets.all(AppSpace.md),
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           color: AppColors.surface,
           border: Border(top: BorderSide(color: AppColors.border)),
         ),
@@ -555,7 +555,7 @@ class _FilaRectificacionWidget extends StatelessWidget {
                 ),
                 if (onQuitar != null)
                   IconButton(
-                    icon: const Icon(Icons.close, size: 18, color: AppColors.inkFaint),
+                    icon: Icon(Icons.close, size: 18, color: AppColors.inkFaint),
                     onPressed: onQuitar,
                   ),
               ],

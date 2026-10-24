@@ -399,4 +399,14 @@ class FacturaRepository extends ChangeNotifier {
 
   Future<void> _persist() =>
       _store.writeList(_key, _facturas.map((f) => f.toJson()).toList());
+
+  /// Borra todas las facturas del dispositivo -- usado al "cerrar
+  /// sesión" (ver settings_screen.dart). A diferencia de delete()/
+  /// anular(), no respeta el rastro fiscal a propósito: es un borrado
+  /// total del dispositivo, no una operación de negocio.
+  Future<void> limpiar() async {
+    _facturas = [];
+    await _store.remove(_key);
+    notifyListeners();
+  }
 }

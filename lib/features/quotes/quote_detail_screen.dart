@@ -271,7 +271,7 @@ class QuoteDetailScreen extends StatelessWidget {
                 else
                   Card(
                     child: ListTile(
-                      leading: const Icon(
+                      leading: Icon(
                         Icons.build_outlined,
                         color: AppColors.success,
                       ),

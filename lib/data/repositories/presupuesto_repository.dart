@@ -62,6 +62,14 @@ class PresupuestoRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Borra todos los presupuestos del dispositivo -- usado al "cerrar
+  /// sesión" (ver settings_screen.dart).
+  Future<void> limpiar() async {
+    _presupuestos = [];
+    await _store.remove(_key);
+    notifyListeners();
+  }
+
   Future<void> _persist() =>
       _store.writeList(_key, _presupuestos.map((p) => p.toJson()).toList());
 }

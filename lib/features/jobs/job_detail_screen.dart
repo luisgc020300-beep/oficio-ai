@@ -191,7 +191,7 @@ class JobDetailScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          const Icon(
+                          Icon(
                             Icons.person_outline,
                             size: 17,
                             color: AppColors.inkMuted,
@@ -207,7 +207,7 @@ class JobDetailScreen extends StatelessWidget {
                         const SizedBox(height: AppSpace.sm),
                         Row(
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.place_outlined,
                               size: 17,
                               color: AppColors.inkMuted,

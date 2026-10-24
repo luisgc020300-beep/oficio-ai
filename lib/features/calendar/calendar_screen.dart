@@ -354,7 +354,7 @@ class _EtiquetaHoy extends StatelessWidget {
         color: AppColors.primaryTint,
         borderRadius: BorderRadius.circular(AppRadius.pill),
       ),
-      child: const Text(
+      child: Text(
         'HOY',
         style: TextStyle(
           fontSize: 9.5,
@@ -525,7 +525,7 @@ class _CitaCard extends StatelessWidget {
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(
+                            Icon(
                               Icons.build_outlined,
                               size: 13,
                               color: AppColors.primary,
@@ -535,7 +535,7 @@ class _CitaCard extends StatelessWidget {
                               child: Text(
                                 trabajo.titulo,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
                                   color: AppColors.primary,
                                   fontWeight: FontWeight.w600,

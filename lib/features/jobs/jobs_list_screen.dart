@@ -170,7 +170,7 @@ class _JobsListScreenState extends State<JobsListScreen> {
                             title: t.titulo,
                             esDemo: t.esDemo,
                             subtitle: cliente?.nombre ?? 'Sin cliente',
-                            trailing: const Icon(
+                            trailing: Icon(
                               Icons.chevron_right,
                               color: AppColors.inkFaint,
                             ),

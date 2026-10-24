@@ -55,6 +55,15 @@ class ClienteRepository extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Borra todos los clientes del dispositivo -- usado al "cerrar
+  /// sesión" (ver settings_screen.dart). No pasa por delete() uno a uno
+  /// para no reescribir la lista en disco N veces.
+  Future<void> limpiar() async {
+    _clientes = [];
+    await _store.remove(_key);
+    notifyListeners();
+  }
+
   Future<void> _persist() =>
       _store.writeList(_key, _clientes.map((c) => c.toJson()).toList());
 }

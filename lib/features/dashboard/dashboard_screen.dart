@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../core/theme/theme_controller.dart';
 import '../../core/utils/formatters.dart';
 import '../../core/widgets/brand_mark.dart';
 import '../../core/widgets/demo_data_banner.dart';
@@ -21,6 +22,7 @@ import '../jobs/job_detail_screen.dart';
 import '../jobs/job_form_sheet.dart';
 import '../quotes/quote_form_screen.dart';
 import '../settings/business_settings_screen.dart';
+import '../settings/settings_screen.dart';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({
@@ -28,10 +30,12 @@ class DashboardScreen extends StatelessWidget {
     required this.onVerTrabajos,
     required this.onVerPresupuestos,
     required this.onVerFacturas,
+    this.themeController,
     super.key,
   });
 
   final AppData appData;
+  final ThemeController? themeController;
   final VoidCallback onVerTrabajos;
   final VoidCallback onVerPresupuestos;
   final VoidCallback onVerFacturas;
@@ -76,8 +80,17 @@ class DashboardScreen extends StatelessWidget {
             ),
           ),
           IconButton(
-            icon: const Icon(Icons.notifications_none_outlined),
-            onPressed: () {},
+            tooltip: 'Ajustes',
+            icon: const Icon(Icons.settings_outlined),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => SettingsScreen(
+                  appData: appData,
+                  themeController: themeController ?? ThemeController(),
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -407,7 +420,7 @@ class DashboardScreen extends StatelessWidget {
                       for (var i = 0; i < proximosTrabajos.length.clamp(0, 4); i++) ...[
                         if (i > 0) const Divider(height: 1, indent: 16),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.calendar_today_outlined,
                             color: AppColors.primary,
                           ),
@@ -456,7 +469,7 @@ class DashboardScreen extends StatelessWidget {
                       for (var i = 0; i < proximasCitas.length.clamp(0, 4); i++) ...[
                         if (i > 0) const Divider(height: 1, indent: 16),
                         ListTile(
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.event_outlined,
                             color: AppColors.primary,
                           ),
@@ -661,7 +674,7 @@ class _ResumenEconomico extends StatelessWidget {
               const Divider(height: AppSpace.lg),
               Row(
                 children: [
-                  const Icon(
+                  Icon(
                     Icons.info_outline,
                     size: 16,
                     color: AppColors.inkMuted,
@@ -797,7 +810,7 @@ class _MiniGraficoMensual extends StatelessWidget {
               const SizedBox(height: 4),
               Text(
                 _mesesCorto[m.mes.month - 1],
-                style: const TextStyle(fontSize: 9.5, color: AppColors.inkFaint),
+                style: TextStyle(fontSize: 9.5, color: AppColors.inkFaint),
               ),
             ],
           ),

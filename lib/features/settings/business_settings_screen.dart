@@ -175,7 +175,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(
+                      Icon(
                         Icons.info_outline,
                         size: 18,
                         color: AppColors.primary,
@@ -316,7 +316,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.image_outlined,
                       size: 18,
                       color: AppColors.inkFaint,
@@ -337,7 +337,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
         ),
         bottomSheet: Container(
           padding: const EdgeInsets.all(AppSpace.md),
-          decoration: const BoxDecoration(
+          decoration: BoxDecoration(
             color: AppColors.surface,
             border: Border(top: BorderSide(color: AppColors.border)),
           ),
