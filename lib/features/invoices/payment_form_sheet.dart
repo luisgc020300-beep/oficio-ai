@@ -176,6 +176,7 @@ class _PaymentFormSheetState extends State<_PaymentFormSheet> {
                   decoration: const InputDecoration(
                     labelText: 'Referencia o nota (opcional)',
                   ),
+                  maxLines: null,
                 ),
                 const SizedBox(height: AppSpace.lg),
                 FilledButton(

@@ -179,6 +179,7 @@ class _AppointmentFormSheetState extends State<_AppointmentFormSheet> {
                 controller: _tituloCtrl,
                 decoration: const InputDecoration(labelText: 'Título *'),
                 textCapitalization: TextCapitalization.sentences,
+                maxLines: null,
               ),
               const SizedBox(height: AppSpace.sm),
               if (widget.clienteIdFijo != null)

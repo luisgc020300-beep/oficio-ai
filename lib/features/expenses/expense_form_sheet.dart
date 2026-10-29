@@ -151,6 +151,7 @@ class _ExpenseFormSheetState extends State<_ExpenseFormSheet> {
                   controller: _descripcionCtrl,
                   decoration: const InputDecoration(labelText: 'Descripción *'),
                   textCapitalization: TextCapitalization.sentences,
+                  maxLines: null,
                   validator: (v) =>
                       (v == null || v.trim().isEmpty) ? 'Obligatorio' : null,
                 ),

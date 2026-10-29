@@ -375,6 +375,7 @@ class _QuoteFormScreenState extends State<QuoteFormScreen> {
               controller: _tituloCtrl,
               decoration: const InputDecoration(labelText: 'Título *'),
               textCapitalization: TextCapitalization.sentences,
+              maxLines: null,
               // setState -- sin esto, PopScope(canPop: !_tocado, ...) se
               // queda con el valor construido la última vez que se
               // reconstruyó el widget y nunca refleja este cambio si es
@@ -498,6 +499,7 @@ class _FilaConceptoWidget extends StatelessWidget {
                       isDense: true,
                     ),
                     textCapitalization: TextCapitalization.sentences,
+                    maxLines: null,
                     onChanged: (_) => onChanged(),
                   ),
                 ),

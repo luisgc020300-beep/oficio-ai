@@ -139,6 +139,7 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
                     labelText: 'Nombre o empresa *',
                   ),
                   textCapitalization: TextCapitalization.words,
+                  maxLines: null,
                   validator: _vacio,
                 ),
                 const SizedBox(height: AppSpace.sm),
@@ -158,6 +159,7 @@ class _ClientFormSheetState extends State<_ClientFormSheet> {
                 TextFormField(
                   controller: _direccionCtrl,
                   decoration: const InputDecoration(labelText: 'Dirección'),
+                  maxLines: null,
                 ),
                 const SizedBox(height: AppSpace.sm),
                 TextFormField(

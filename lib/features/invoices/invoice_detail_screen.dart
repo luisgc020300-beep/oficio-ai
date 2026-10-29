@@ -199,6 +199,7 @@ class InvoiceDetailScreen extends StatelessWidget {
               controller: motivoCtrl,
               decoration: const InputDecoration(labelText: 'Motivo *'),
               autofocus: true,
+              maxLines: null,
             ),
           ],
         ),

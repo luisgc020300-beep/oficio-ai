@@ -219,6 +219,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                 controller: _nombreComercialCtrl,
                 decoration: const InputDecoration(labelText: 'Nombre comercial'),
                 textCapitalization: TextCapitalization.words,
+                maxLines: null,
               ),
               const SizedBox(height: AppSpace.sm),
               TextFormField(
@@ -227,6 +228,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                   labelText: etiquetaNombreFiscal(_tipoTitular),
                 ),
                 textCapitalization: TextCapitalization.words,
+                maxLines: null,
               ),
               const SizedBox(height: AppSpace.sm),
               TextFormField(
@@ -239,6 +241,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
               TextFormField(
                 controller: _actividadCtrl,
                 decoration: const InputDecoration(labelText: 'Actividad profesional'),
+                maxLines: null,
               ),
               const SizedBox(height: AppSpace.sm),
               TextFormField(
@@ -267,6 +270,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                 controller: _direccionCtrl,
                 decoration: const InputDecoration(labelText: 'Dirección *'),
                 textCapitalization: TextCapitalization.sentences,
+                maxLines: null,
               ),
               const SizedBox(height: AppSpace.sm),
               Row(
@@ -289,6 +293,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                       controller: _localidadCtrl,
                       decoration: const InputDecoration(labelText: 'Localidad *'),
                       textCapitalization: TextCapitalization.words,
+                      maxLines: null,
                     ),
                   ),
                 ],
@@ -298,6 +303,7 @@ class _BusinessSettingsScreenState extends State<BusinessSettingsScreen> {
                 controller: _provinciaCtrl,
                 decoration: const InputDecoration(labelText: 'Provincia *'),
                 textCapitalization: TextCapitalization.words,
+                maxLines: null,
               ),
               const SizedBox(height: AppSpace.sm),
               TextFormField(

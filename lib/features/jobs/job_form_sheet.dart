@@ -221,6 +221,7 @@ class _JobFormSheetState extends State<_JobFormSheet> {
                   controller: _tituloCtrl,
                   decoration: const InputDecoration(labelText: 'Título *'),
                   textCapitalization: TextCapitalization.sentences,
+                  maxLines: null,
                   validator: (v) =>
                       (v == null || v.trim().isEmpty) ? 'Obligatorio' : null,
                 ),
@@ -236,6 +237,7 @@ class _JobFormSheetState extends State<_JobFormSheet> {
                   decoration: const InputDecoration(
                     labelText: 'Dirección del trabajo',
                   ),
+                  maxLines: null,
                 ),
                 const SizedBox(height: AppSpace.sm),
                 DropdownButtonFormField<EstadoTrabajo>(

@@ -5,9 +5,17 @@
 // para una barra de móvil (Material/iOS HIG); con 7 no cabían las
 // etiquetas sin cortarse. Presupuestos y Asistente ya tenían (o ahora
 // tienen) su propio acceso desde Inicio -- ver DashboardScreen -- así que
-// no se pierde nada al sacarlos de la barra. IndexedStack mantiene vivo
-// el estado de cada pestaña al cambiar entre ellas (no se pierde el
-// scroll ni los filtros aplicados).
+// no se pierde nada al sacarlos de la barra.
+//
+// PageView (no IndexedStack) para que las 5 pestañas también se puedan
+// cambiar deslizando el dedo horizontalmente, no solo tocando la barra.
+// PageView, a diferencia de IndexedStack, por defecto NO mantiene vivas
+// las páginas que quedan fuera de su cacheExtent (0 por defecto, ver
+// package:flutter/src/widgets/page_view.dart) -- así que cada pestaña se
+// envuelve en _KeepAlivePage (AutomaticKeepAliveClientMixin) para
+// conservar exactamente la misma garantía que tenía IndexedStack: no se
+// pierde el scroll ni los filtros aplicados al cambiar de pestaña, deslizando
+// o tocando la barra.
 import 'package:flutter/material.dart';
 
 import 'core/theme/app_colors.dart';
@@ -32,8 +40,24 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _indice = 0;
+  final _pageController = PageController();
 
-  void _irA(int indice) => setState(() => _indice = indice);
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  // Usado por la barra inferior -- anima hasta la página tocada. El
+  // deslizamiento con el dedo no pasa por aquí: lo gestiona PageView
+  // directamente y notifica el cambio a _onPageChanged.
+  void _irA(int indice) => _pageController.animateToPage(
+    indice,
+    duration: const Duration(milliseconds: 260),
+    curve: Curves.easeOutCubic,
+  );
+
+  void _onPageChanged(int indice) => setState(() => _indice = indice);
 
   @override
   Widget build(BuildContext context) {
@@ -57,7 +81,11 @@ class _AppShellState extends State<AppShell> {
     ];
 
     return Scaffold(
-      body: IndexedStack(index: _indice, children: pantallas),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
+        children: [for (final p in pantallas) _KeepAlivePage(child: p)],
+      ),
       bottomNavigationBar: NavigationBarTheme(
         data: NavigationBarThemeData(
           backgroundColor: AppColors.surface,
@@ -109,5 +137,31 @@ class _AppShellState extends State<AppShell> {
         ),
       ),
     );
+  }
+}
+
+/// Fuerza a PageView a mantener viva una página aunque quede fuera de su
+/// cacheExtent (0 por defecto) -- ver nota de cabecera de este archivo.
+/// AutomaticKeepAlive es el mecanismo soportado por Flutter para esto
+/// (el mismo que usa TabBarView internamente): basta con que
+/// wantKeepAlive devuelva true y con llamar a super.build().
+class _KeepAlivePage extends StatefulWidget {
+  const _KeepAlivePage({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_KeepAlivePage> createState() => _KeepAlivePageState();
+}
+
+class _KeepAlivePageState extends State<_KeepAlivePage>
+    with AutomaticKeepAliveClientMixin<_KeepAlivePage> {
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return widget.child;
   }
 }

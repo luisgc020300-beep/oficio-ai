@@ -550,6 +550,7 @@ class _FilaRectificacionWidget extends StatelessWidget {
                     controller: fila.descripcionCtrl,
                     decoration: const InputDecoration(labelText: 'Descripción', isDense: true),
                     textCapitalization: TextCapitalization.sentences,
+                    maxLines: null,
                     onChanged: (_) => onChanged(),
                   ),
                 ),

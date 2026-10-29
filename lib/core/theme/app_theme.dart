@@ -117,7 +117,10 @@ ThemeData buildAppTheme() {
         // en su lugar (ver nota en AppColors/_Dark).
         backgroundColor: AppColors.esOscuro ? AppColors.primaryStrong : AppColors.primary,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        // Horizontal explícito -- sin esto, EdgeInsets.symmetric lo deja en
+        // 0 y el botón queda exactamente del ancho de su texto, sin margen
+        // contra el borde.
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: 14),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
@@ -128,7 +131,7 @@ ThemeData buildAppTheme() {
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.primary,
         side: BorderSide(color: AppColors.border),
-        padding: const EdgeInsets.symmetric(vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: AppSpace.md, vertical: 14),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(AppRadius.sm),
         ),
