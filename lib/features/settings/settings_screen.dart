@@ -12,6 +12,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/theme_controller.dart';
 import '../../data/app_data.dart';
+import '../reports/reports_screen.dart';
 import 'business_settings_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
@@ -170,6 +171,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         MaterialPageRoute(
                           builder: (_) => BusinessSettingsScreen(appData: widget.appData),
                         ),
+                      ),
+                    ),
+                    CupertinoListTile(
+                      leading: Icon(
+                        Icons.bar_chart_outlined,
+                        color: AppColors.primary,
+                      ),
+                      title: Text('Informes', style: TextStyle(color: AppColors.ink)),
+                      trailing: Icon(CupertinoIcons.chevron_forward, color: AppColors.inkFaint),
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => ReportsScreen(appData: widget.appData)),
                       ),
                     ),
                   ],
