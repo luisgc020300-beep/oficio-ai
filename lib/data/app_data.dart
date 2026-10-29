@@ -11,6 +11,7 @@ import 'repositories/cliente_repository.dart';
 import 'repositories/factura_repository.dart';
 import 'repositories/gasto_repository.dart';
 import 'repositories/negocio_repository.dart';
+import 'repositories/nota_seguimiento_repository.dart';
 import 'repositories/presupuesto_repository.dart';
 import 'repositories/trabajo_repository.dart';
 
@@ -22,7 +23,8 @@ class AppData {
       citas = CitaRepository(store),
       facturas = FacturaRepository(store),
       gastos = GastoRepository(store),
-      negocio = NegocioRepository(store);
+      negocio = NegocioRepository(store),
+      notasSeguimiento = NotaSeguimientoRepository(store);
 
   final ClienteRepository clientes;
   final TrabajoRepository trabajos;
@@ -31,6 +33,7 @@ class AppData {
   final FacturaRepository facturas;
   final GastoRepository gastos;
   final NegocioRepository negocio;
+  final NotaSeguimientoRepository notasSeguimiento;
 
   static Future<AppData> bootstrap() async {
     final store = await LocalStore.open();
@@ -43,6 +46,7 @@ class AppData {
       data.facturas.load(),
       data.gastos.load(),
       data.negocio.load(),
+      data.notasSeguimiento.load(),
     ]);
     // Solo siembra datos de ejemplo si el usuario nunca ha guardado nada
     // propio todavía -- ver demo_seed.dart. Los gastos no tienen semilla
@@ -71,6 +75,7 @@ class AppData {
       facturas.limpiar(),
       gastos.limpiar(),
       negocio.limpiar(),
+      notasSeguimiento.limpiar(),
     ]);
     await clientes.seedIfEmpty(demoClientes);
     await trabajos.seedIfEmpty(demoTrabajos);

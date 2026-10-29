@@ -18,6 +18,12 @@ class CitaRepository extends ChangeNotifier {
   List<Cita> porTrabajo(String trabajoId) =>
       _citas.where((c) => c.trabajoId == trabajoId).toList();
 
+  /// Citas de un cliente concreto, ordenadas por fecha (ascendente,
+  /// igual que [citas]) -- quien busque "la próxima" filtra sobre el
+  /// resultado (ver client_detail_screen.dart).
+  List<Cita> porCliente(String clienteId) =>
+      _citas.where((c) => c.clienteId == clienteId).toList();
+
   List<Cita> delDia(DateTime dia) => _citas
       .where(
         (c) =>
