@@ -9,10 +9,12 @@ import '../../core/widgets/empty_state.dart';
 import '../../core/widgets/quick_action_button.dart';
 import '../../core/widgets/section_header.dart';
 import '../../data/app_data.dart';
+import '../../data/models/cita.dart';
 import '../../data/models/factura.dart';
 import '../../data/models/nota_seguimiento.dart';
 import '../../data/models/presupuesto.dart';
 import '../../data/models/trabajo.dart';
+import '../calendar/appointment_form_sheet.dart';
 import '../invoices/invoice_detail_screen.dart';
 import '../jobs/job_detail_screen.dart';
 import '../jobs/job_form_sheet.dart';
@@ -126,6 +128,24 @@ class ClientDetailScreen extends StatelessWidget {
         final seguimientosFuturos = notas.where((n) => n.esSeguimientoFuturo()).toList()
           ..sort((a, b) => a.fechaSeguimiento!.compareTo(b.fechaSeguimiento!));
 
+        // Mismo "ahora" para los dos grupos de abajo, para que sean
+        // exhaustivos y mutuamente excluyentes incluso si el reloj
+        // avanza entre una comprobación y la otra.
+        final ahoraParaCitas = DateTime.now();
+        // Citas del cliente (auditoría AUD-11-02), agrupadas en dos
+        // bloques -- no hay ningún estado "cancelada" en el modelo
+        // [Cita] (solo [completada], un simple sí/no -- ver cita.dart),
+        // así que no se inventa uno nuevo aquí: una cita ya completada
+        // se trata siempre como "Anterior" sin importar su fecha (ya
+        // está resuelta), y una cita pasada que nunca se marcó
+        // completada también cae en "Anteriores" -- es la aproximación
+        // más honesta a "pasada o cancelada" que el modelo permite
+        // expresar hoy sin ampliarlo.
+        final citasProximas = citas.where((c) => !c.completada && c.fechaHora.isAfter(ahoraParaCitas)).toList()
+          ..sort((a, b) => a.fechaHora.compareTo(b.fechaHora));
+        final citasAnteriores = citas.where((c) => c.completada || !c.fechaHora.isAfter(ahoraParaCitas)).toList()
+          ..sort((a, b) => b.fechaHora.compareTo(a.fechaHora));
+
         return Scaffold(
           appBar: AppBar(
             title: Row(
@@ -156,11 +176,13 @@ class ClientDetailScreen extends StatelessWidget {
                     context,
                     titulo: '¿Eliminar este cliente?',
                     mensaje:
-                        'Sus trabajos y presupuestos no se eliminan, pero '
-                        'quedarán sin cliente asociado.',
+                        'Sus trabajos, presupuestos, facturas y citas no se '
+                        'eliminan, pero quedarán sin cliente asociado. Sus '
+                        'notas de seguimiento sí se eliminarán, junto con el '
+                        'cliente.',
                   );
                   if (confirmar) {
-                    await appData.clientes.delete(clienteId);
+                    await appData.eliminarCliente(clienteId);
                     if (context.mounted) Navigator.pop(context);
                   }
                 },
@@ -296,6 +318,72 @@ class ClientDetailScreen extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: AppSpace.lg),
+              const SectionHeader(title: 'Citas'),
+              const SizedBox(height: AppSpace.sm),
+              if (citasProximas.isEmpty && citasAnteriores.isEmpty)
+                const _TarjetaVacia('Sin citas todavía.')
+              else ...[
+                if (citasProximas.isNotEmpty) ...[
+                  // Etiqueta de grupo solo cuando hay los dos bloques --
+                  // con uno solo, el título "Citas" de arriba ya basta,
+                  // repetirlo sería ruido.
+                  if (citasAnteriores.isNotEmpty) ...[
+                    Text(
+                      'Próximas',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.inkMuted),
+                    ),
+                    const SizedBox(height: AppSpace.xs),
+                  ],
+                  Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < citasProximas.length; i++) ...[
+                          if (i > 0) const Divider(height: 1, indent: 16),
+                          _FilaCita(
+                            cita: citasProximas[i],
+                            onTap: () => mostrarFormularioCita(
+                              context,
+                              appData: appData,
+                              existente: citasProximas[i],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+                if (citasProximas.isNotEmpty && citasAnteriores.isNotEmpty)
+                  const SizedBox(height: AppSpace.md),
+                if (citasAnteriores.isNotEmpty) ...[
+                  if (citasProximas.isNotEmpty) ...[
+                    Text(
+                      'Anteriores',
+                      style: Theme.of(context).textTheme.labelLarge?.copyWith(color: AppColors.inkMuted),
+                    ),
+                    const SizedBox(height: AppSpace.xs),
+                  ],
+                  Card(
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        for (var i = 0; i < citasAnteriores.length; i++) ...[
+                          if (i > 0) const Divider(height: 1, indent: 16),
+                          _FilaCita(
+                            cita: citasAnteriores[i],
+                            onTap: () => mostrarFormularioCita(
+                              context,
+                              appData: appData,
+                              existente: citasAnteriores[i],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+              const SizedBox(height: AppSpace.lg),
               const SectionHeader(title: 'Trabajos'),
               const SizedBox(height: AppSpace.sm),
               if (trabajos.isEmpty)
@@ -423,7 +511,11 @@ class ClientDetailScreen extends StatelessWidget {
                     ],
                   ),
                 ),
-              if (trabajos.isEmpty && presupuestos.isEmpty && facturas.isEmpty && notas.isEmpty) ...[
+              if (trabajos.isEmpty &&
+                  presupuestos.isEmpty &&
+                  facturas.isEmpty &&
+                  notas.isEmpty &&
+                  citas.isEmpty) ...[
                 const SizedBox(height: AppSpace.lg),
                 const EmptyState(
                   icon: Icons.work_outline,
@@ -588,6 +680,40 @@ class _FilaNota extends StatelessWidget {
         icon: const Icon(Icons.delete_outline, size: 20),
         onPressed: onEliminar,
       ),
+    );
+  }
+}
+
+/// Fila de la sección "Citas" -- mismo lenguaje visual que la lista de
+/// calendar_screen.dart (tachado + icono relleno/hueco según
+/// [Cita.completada]), para no inventar un estilo nuevo solo para esta
+/// pantalla. Tocar abre el mismo formulario de edición que usa la
+/// agenda (mostrarFormularioCita) -- no hay un flujo de edición propio
+/// de esta ficha.
+class _FilaCita extends StatelessWidget {
+  const _FilaCita({required this.cita, required this.onTap});
+
+  final Cita cita;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: Icon(
+        cita.completada ? Icons.check_circle : Icons.check_circle_outline,
+        color: cita.completada ? AppColors.success : AppColors.inkFaint,
+      ),
+      title: Text(
+        cita.titulo,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          decoration: cita.completada ? TextDecoration.lineThrough : null,
+          color: cita.completada ? AppColors.inkFaint : null,
+        ),
+      ),
+      subtitle: Text(formatDateTime(cita.fechaHora)),
+      onTap: onTap,
     );
   }
 }

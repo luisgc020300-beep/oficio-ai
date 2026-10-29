@@ -152,6 +152,61 @@ void main() {
     },
   );
 
+  // Auditoría AUD-12-06: mismo escenario numérico verificado en
+  // rectificativa_calculos_test.dart (test 1) y replicado en
+  // client_detail_screen_test.dart -- aquí, en el informe. Original
+  // 100€+21%=121€, corregida a 80€+21%=96,80€ (modalidad "importe
+  // resultante"), importeRectificacion=-24,20€.
+  testWidgets(
+    'facturación del mes: una rectificativa "importe resultante" no duplica el importe de la '
+    'factura original',
+    (tester) async {
+      final appData = await _appDataVacia();
+      await appData.negocio.guardar(_datosCompletos);
+      await appData.clientes.add(Cliente(id: 'c1', nombre: 'Ana Pérez', creadoEl: DateTime(2026)));
+
+      Factura ordinaria(String id, double precio) => Factura(
+        id: id,
+        clienteId: 'c1',
+        titulo: 'Factura $id',
+        conceptos: [
+          ConceptoPresupuesto(id: 'c1', descripcion: 'Servicio', cantidad: 1, precioUnitario: precio),
+        ],
+        creadaEl: DateTime.now(),
+      );
+
+      await appData.facturas.add(ordinaria('o', 100));
+      final original = await appData.facturas.emitir('o', datosEmisor: _datosCompletos);
+      expect(original.totales.total, 121);
+
+      await appData.facturas.add(
+        Factura(
+          id: 'r',
+          clienteId: 'c1',
+          titulo: 'Rectificativa de o',
+          conceptos: const [
+            ConceptoPresupuesto(id: 'c1', descripcion: 'Corrección', cantidad: 1, precioUnitario: 80),
+          ],
+          creadaEl: DateTime.now(),
+          tipoDocumento: TipoDocumentoFactura.rectificativa,
+          serie: serieRectificativas,
+          facturaOriginalId: original.id,
+          motivoRectificacion: 'Precio pactado inferior al facturado',
+          modalidadRectificacion: ModalidadRectificacion.importeResultante,
+        ),
+      );
+      await appData.facturas.emitir('r', datosEmisor: _datosCompletos);
+      expect(appData.facturas.byId('r')!.importeRectificacion, closeTo(-24.2, 0.001));
+
+      await tester.pumpWidget(MaterialApp(home: ReportsScreen(appData: appData)));
+      await tester.pumpAndSettle();
+
+      // Facturado = 121 + (-24,20) = 96,80, nunca 121+96,80=217,80.
+      expect(find.text(formatCurrency(96.8)), findsWidgets);
+      expect(find.text(formatCurrency(217.8)), findsNothing);
+    },
+  );
+
   testWidgets('gastos por categoría: suma por categoría y el total general', (tester) async {
     final appData = await _appDataVacia();
     await appData.clientes.add(Cliente(id: 'c1', nombre: 'Ana Pérez', creadoEl: DateTime(2026)));

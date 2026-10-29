@@ -12,6 +12,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:oficio_ai/core/utils/formatters.dart';
 import 'package:oficio_ai/data/app_data.dart';
 import 'package:oficio_ai/data/local/local_store.dart';
+import 'package:oficio_ai/data/models/cita.dart';
 import 'package:oficio_ai/data/models/cliente.dart';
 import 'package:oficio_ai/data/models/concepto_presupuesto.dart';
 import 'package:oficio_ai/data/models/datos_negocio.dart';
@@ -138,6 +139,58 @@ void main() {
       // Control negativo: el importe de la factura anulada no debe
       // aparecer como si contara en el total.
       expect(find.text(formatCurrency(60.5)), findsNothing);
+    },
+  );
+
+  // Auditoría AUD-12-06: el test anterior solo usa la modalidad "por
+  // diferencias" -- esta cubre "importe resultante", la más propensa a
+  // doble contabilización (ver Factura.importeFacturacion). Escenario
+  // numérico idéntico al ya verificado en
+  // rectificativa_calculos_test.dart (test 1): original 100€+21%=121€,
+  // corregida a 80€+21%=96,80€, importeRectificacion=-24,20€.
+  testWidgets(
+    'historial económico: una rectificativa "importe resultante" no duplica el importe de la '
+    'factura original',
+    (tester) async {
+      final appData = await _appDataVacia();
+      await appData.negocio.guardar(_datosCompletos);
+      await appData.clientes.add(Cliente(id: 'c1', nombre: 'Ana Pérez', creadoEl: DateTime(2026)));
+
+      await appData.facturas.add(_facturaOrdinaria(id: 'o', clienteId: 'c1', precio: 100));
+      final original = await appData.facturas.emitir('o', datosEmisor: _datosCompletos);
+      expect(original.totales.total, 121); // control del punto de partida, igual que en el modelo
+
+      await appData.facturas.add(
+        Factura(
+          id: 'r',
+          clienteId: 'c1',
+          titulo: 'Rectificativa de o',
+          conceptos: const [
+            ConceptoPresupuesto(id: 'c1', descripcion: 'Corrección', cantidad: 1, precioUnitario: 80),
+          ],
+          creadaEl: DateTime(2026, 2, 5),
+          tipoDocumento: TipoDocumentoFactura.rectificativa,
+          serie: serieRectificativas,
+          facturaOriginalId: original.id,
+          motivoRectificacion: 'Precio pactado inferior al facturado',
+          modalidadRectificacion: ModalidadRectificacion.importeResultante,
+        ),
+      );
+      await appData.facturas.emitir('r', datosEmisor: _datosCompletos);
+      expect(appData.facturas.byId('r')!.importeRectificacion, closeTo(-24.2, 0.001));
+
+      await tester.pumpWidget(
+        MaterialApp(home: ClientDetailScreen(appData: appData, clienteId: 'c1')),
+      );
+      await tester.pumpAndSettle();
+
+      // Facturado = 121 (original) + (-24,20) (rectificativa, usando
+      // importeRectificacion, no su totales.total de 96,80) = 96,80.
+      expect(find.text(formatCurrency(96.8)), findsWidgets);
+      // Control negativo: si el código usara por error totales.total de
+      // la rectificativa en vez de importeRectificacion, el total
+      // mostrado sería 121+96,80=217,80 -- no debe aparecer nunca.
+      expect(find.text(formatCurrency(217.8)), findsNothing);
     },
   );
 
@@ -364,5 +417,135 @@ void main() {
         expect(find.text('Seguimientos pendientes'), findsNothing);
       },
     );
+
+    // Caso que faltaba del test anterior (auditoría AUD-11-03, iteración
+    // de correcciones): un seguimiento con fecha futura -- el otro test
+    // ya cubre atrasado/hoy/realizado/cancelado, no se duplica aquí.
+    testWidgets(
+      'un seguimiento con fecha futura se clasifica como pendiente, sin mezclarse con los '
+      'atrasados o de hoy',
+      (tester) async {
+        final appData = await _appDataVacia();
+        await appData.clientes.add(Cliente(id: 'c1', nombre: 'Ana Pérez', creadoEl: DateTime(2026)));
+        final hoy = DateTime.now();
+        await appData.notasSeguimiento.add(
+          NotaSeguimiento(
+            id: 'futura',
+            clienteId: 'c1',
+            texto: 'Volver a llamar la semana que viene',
+            creadoEl: hoy,
+            fechaSeguimiento: hoy.add(const Duration(days: 7)),
+          ),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(home: ClientDetailScreen(appData: appData, clienteId: 'c1')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('Seguimientos pendientes'), findsOneWidget);
+        expect(find.text('Atrasado'), findsNothing);
+        expect(find.text('Hoy'), findsNothing);
+        await _scrollHasta(tester, find.text('Volver a llamar la semana que viene'));
+        expect(find.text('Volver a llamar la semana que viene'), findsOneWidget);
+      },
+    );
+  });
+
+  // Auditoría AUD-11-02: la ficha pasó de mostrar solo "próxima cita" (una
+  // línea) a una sección "Citas" con lo próximo y lo anterior del
+  // cliente.
+  group('citas', () {
+    testWidgets('un cliente sin citas muestra el estado vacío de la sección', (tester) async {
+      final appData = await _appDataVacia();
+      await appData.clientes.add(Cliente(id: 'c1', nombre: 'Sin citas', creadoEl: DateTime(2026)));
+
+      await tester.pumpWidget(
+        MaterialApp(home: ClientDetailScreen(appData: appData, clienteId: 'c1')),
+      );
+      await tester.pumpAndSettle();
+
+      await _scrollHasta(tester, find.text('Citas'));
+      expect(find.text('Sin citas todavía.'), findsOneWidget);
+    });
+
+    testWidgets(
+      'con una cita futura, una pasada sin completar y una completada, se agrupan en '
+      '"Próximas" y "Anteriores" sin mezclar las de otro cliente',
+      (tester) async {
+        final appData = await _appDataVacia();
+        await appData.clientes.add(Cliente(id: 'c1', nombre: 'Ana Pérez', creadoEl: DateTime(2026)));
+        await appData.clientes.add(Cliente(id: 'c2', nombre: 'Otro cliente', creadoEl: DateTime(2026)));
+        final hoy = DateTime.now();
+
+        await appData.citas.add(
+          Cita(id: 'futura', titulo: 'Revisión futura', fechaHora: hoy.add(const Duration(days: 5)), clienteId: 'c1'),
+        );
+        await appData.citas.add(
+          Cita(
+            id: 'pasada',
+            titulo: 'Visita pasada sin marcar',
+            fechaHora: hoy.subtract(const Duration(days: 10)),
+            clienteId: 'c1',
+          ),
+        );
+        await appData.citas.add(
+          Cita(
+            id: 'completada',
+            titulo: 'Instalación ya hecha',
+            fechaHora: hoy.subtract(const Duration(days: 20)),
+            clienteId: 'c1',
+            completada: true,
+          ),
+        );
+        // De otro cliente -- nunca debe aparecer en la ficha de c1.
+        await appData.citas.add(
+          Cita(id: 'ajena', titulo: 'Cita de otro cliente', fechaHora: hoy.add(const Duration(days: 1)), clienteId: 'c2'),
+        );
+
+        await tester.pumpWidget(
+          MaterialApp(home: ClientDetailScreen(appData: appData, clienteId: 'c1')),
+        );
+        await tester.pumpAndSettle();
+        await _scrollHasta(tester, find.text('Citas'));
+
+        expect(find.text('Próximas'), findsOneWidget);
+        expect(find.text('Anteriores'), findsOneWidget);
+        expect(find.text('Revisión futura'), findsOneWidget);
+        expect(find.text('Visita pasada sin marcar'), findsOneWidget);
+        expect(find.text('Instalación ya hecha'), findsOneWidget);
+        expect(find.text('Cita de otro cliente'), findsNothing);
+
+        // Orden dentro de "Anteriores": más reciente primero -- la
+        // pasada sin completar (hace 10 días) antes que la completada
+        // (hace 20 días).
+        final posicionPasada = tester.getTopLeft(find.text('Visita pasada sin marcar')).dy;
+        final posicionCompletada = tester.getTopLeft(find.text('Instalación ya hecha')).dy;
+        expect(posicionPasada, lessThan(posicionCompletada));
+      },
+    );
+
+    testWidgets('tocar una cita abre el mismo formulario de edición que usa la agenda', (tester) async {
+      final appData = await _appDataVacia();
+      await appData.clientes.add(Cliente(id: 'c1', nombre: 'Ana Pérez', creadoEl: DateTime(2026)));
+      await appData.citas.add(
+        Cita(
+          id: 'c-futura',
+          titulo: 'Revisión anual',
+          fechaHora: DateTime.now().add(const Duration(days: 3)),
+          clienteId: 'c1',
+        ),
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(home: ClientDetailScreen(appData: appData, clienteId: 'c1')),
+      );
+      await tester.pumpAndSettle();
+      await _scrollHasta(tester, find.text('Revisión anual'));
+
+      await tester.tap(find.text('Revisión anual'));
+      await tester.pumpAndSettle();
+      expect(find.text('Editar cita'), findsOneWidget);
+    });
   });
 }

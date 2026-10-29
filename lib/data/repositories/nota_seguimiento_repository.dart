@@ -72,6 +72,18 @@ class NotaSeguimientoRepository extends ChangeNotifier {
     await _guardar(_notas.where((n) => n.id != id).toList());
   }
 
+  /// Borra todas las notas de un cliente de una sola vez -- usado al
+  /// eliminar el cliente (auditoría AUD-11-01, ver AppData.eliminarCliente).
+  /// A diferencia de trabajos/presupuestos/facturas/citas (que la app
+  /// deja huérfanos a propósito, nunca los borra, para no perder un
+  /// rastro histórico/fiscal), una nota de seguimiento no es un registro
+  /// económico -- no hay nada que proteger dejándola huérfana e
+  /// inaccesible para siempre. Si el cliente no tiene ninguna nota, esto
+  /// no hace nada (lista resultante idéntica a la actual, sin error).
+  Future<void> eliminarPorCliente(String clienteId) async {
+    await _guardar(_notas.where((n) => n.clienteId != clienteId).toList());
+  }
+
   Future<void> marcarSeguimientoRealizado(String id) => _cambiarEstadoSeguimiento(
     id,
     EstadoSeguimiento.realizado,

@@ -211,6 +211,26 @@ class _ReportsScreenState extends State<ReportsScreen> {
                       children: [
                         _FilaInforme('Facturado', formatCurrency(totalFacturado)),
                         _FilaInforme('Cobrado', formatCurrency(totalCobrado)),
+                        // Aclaración (auditoría AUD-12-01): "Facturado" se
+                        // agrupa por la fecha de EMISIÓN de la factura,
+                        // "Cobrado" por la fecha del PAGO -- son
+                        // dimensiones de fecha distintas a propósito (ver
+                        // comentario más arriba), así que no son cifras
+                        // comparables entre sí dentro del mismo periodo.
+                        // Sin esta nota, ver "Cobrado" justo encima de
+                        // "Margen estimado" podía sugerir que el margen
+                        // se calcula sobre lo cobrado -- no es así (ver
+                        // más abajo: Facturado - Gastado).
+                        Padding(
+                          padding: const EdgeInsets.only(top: 2, bottom: 2),
+                          child: Text(
+                            'Cobrado = pagos registrados en este periodo, aunque la '
+                            'factura se emitiera en otro.',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: AppColors.inkMuted,
+                            ),
+                          ),
+                        ),
                         _FilaInforme(
                           'Pendiente de cobro (a día de hoy)',
                           formatCurrency(saldoPendiente),

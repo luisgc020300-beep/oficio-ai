@@ -61,6 +61,29 @@ class AppData {
     return data;
   }
 
+  /// Elimina un cliente (auditoría AUD-11-01, cierre de un hallazgo de la
+  /// auditoría funcional de las iteraciones 11/12): borrar un cliente
+  /// NUNCA ha arrastrado sus trabajos/presupuestos/facturas/citas -- se
+  /// quedan huérfanos a propósito, con su clienteId colgante, porque son
+  /// un rastro histórico/fiscal que la app ya protege en otros sitios
+  /// (ver FacturaRepository.delete(), que ni siquiera deja borrar una
+  /// factura ya emitida). Esa política NO cambia aquí.
+  ///
+  /// Las notas de seguimiento son distintas: el propio modelo las declara
+  /// "no un registro económico", y antes de esta corrección se quedaban
+  /// huérfanas e invisibles para siempre (nunca aparecen en ninguna
+  /// pantalla si su clienteId ya no corresponde a ningún cliente real,
+  /// porque solo se leen vía notasSeguimiento.porCliente(clienteId) desde
+  /// la propia ficha del cliente, que deja de ser alcanzable en cuanto el
+  /// cliente no existe). Sin nada fiscal que proteger, acumularlas sin
+  /// límite ni forma de verlas o borrarlas es peor que borrarlas junto al
+  /// cliente -- por eso, y solo para este repositorio, sí se borran de
+  /// verdad aquí, antes de borrar el cliente.
+  Future<void> eliminarCliente(String clienteId) async {
+    await notasSeguimiento.eliminarPorCliente(clienteId);
+    await clientes.delete(clienteId);
+  }
+
   /// "Cerrar sesión" (pantalla de Ajustes): esta app no tiene cuentas ni
   /// backend -- todo vive en este dispositivo -- así que lo más honesto
   /// que puede hacer un "cerrar sesión" es borrar esos datos y dejar la
